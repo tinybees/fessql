@@ -10,11 +10,11 @@ import unittest
 from datetime import datetime
 
 import sqlalchemy as sa
-
-from aclients import AIOMysqlClient
 from aclients.utils import objectid
 
-mysql_db = AIOMysqlClient()
+from fessql import AIOMySQL
+
+mysql_db = AIOMySQL()
 
 
 class MessageDisplayModel(mysql_db.Model):
