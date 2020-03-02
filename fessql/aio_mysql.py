@@ -409,12 +409,12 @@ class AIOMySQL(AlchemyMixIn, object):
             passwd: mysql password
             pool_size: mysql pool size
             pool_recycle: pool recycle time, type int
-            aclients_binds: binds config, eg:{"first":{"aclients_mysql_host":"127.0.0.1",
-                                                        "aclients_mysql_port":3306,
-                                                        "aclients_mysql_username":"root",
-                                                        "aclients_mysql_passwd":"",
-                                                        "aclients_mysql_dbname":"dbname",
-                                                        "aclients_mysql_pool_size":10}}
+            fessql_binds: binds config, eg:{"first":{"fessql_mysql_host":"127.0.0.1",
+                                                    "fessql_mysql_port":3306,
+                                                    "fessql_mysql_username":"root",
+                                                    "fessql_mysql_passwd":"",
+                                                    "fessql_mysql_dbname":"dbname",
+                                                    "fessql_mysql_pool_size":10}}
         """
         self.app = app
         self.engine_pool = {}  # engine pool
@@ -429,7 +429,7 @@ class AIOMySQL(AlchemyMixIn, object):
         # other info
         self.pool_recycle = kwargs.get("pool_recycle", 3600)  # free close time
         self.charset = "utf8mb4"
-        self.aclients_binds: Dict = kwargs.get("aclients_binds")  # binds config
+        self.fessql_binds: Dict = kwargs.get("fessql_binds")  # binds config
         self.message = kwargs.get("message", {})
         self.use_zh = kwargs.get("use_zh", True)
         self.max_per_page = kwargs.get("max_per_page", None)
@@ -455,24 +455,24 @@ class AIOMySQL(AlchemyMixIn, object):
         Returns:
 
         """
-        self.verify_app(app)  # 校验APP类型是否正确
-
         self.app = app
-        username = username or app.config.get("ACLIENTS_MYSQL_USERNAME", None) or self.username
-        passwd = passwd or app.config.get("ACLIENTS_MYSQL_PASSWD", None) or self.passwd
-        host = host or app.config.get("ACLIENTS_MYSQL_HOST", None) or self.host
-        port = port or app.config.get("ACLIENTS_MYSQL_PORT", None) or self.port
-        dbname = dbname or app.config.get("ACLIENTS_MYSQL_DBNAME", None) or self.dbname
-        self.pool_size = pool_size or app.config.get("ACLIENTS_MYSQL_POOL_SIZE", None) or self.pool_size
+
+        self._verify_sanic_app()  # 校验APP类型是否正确
+        username = username or app.config.get("FESSQL_MYSQL_USERNAME", None) or self.username
+        passwd = passwd or app.config.get("FESSQL_MYSQL_PASSWD", None) or self.passwd
+        host = host or app.config.get("FESSQL_MYSQL_HOST", None) or self.host
+        port = port or app.config.get("FESSQL_MYSQL_PORT", None) or self.port
+        dbname = dbname or app.config.get("FESSQL_MYSQL_DBNAME", None) or self.dbname
+        self.pool_size = pool_size or app.config.get("FESSQL_MYSQL_POOL_SIZE", None) or self.pool_size
 
         self.pool_recycle = kwargs.get("pool_recycle") or app.config.get(
-            "ACLIENTS_POOL_RECYCLE", None) or self.pool_recycle
+            "FESSQL_POOL_RECYCLE", None) or self.pool_recycle
 
-        message = kwargs.get("message") or app.config.get("ACLIENTS_MYSQL_MESSAGE", None) or self.message
-        use_zh = kwargs.get("use_zh") or app.config.get("ACLIENTS_MYSQL_MSGZH", None) or self.use_zh
+        message = kwargs.get("message") or app.config.get("FESSQL_MYSQL_MESSAGE", None) or self.message
+        use_zh = kwargs.get("use_zh") or app.config.get("FESSQL_MYSQL_MSGZH", None) or self.use_zh
 
-        self.aclients_binds = kwargs.get("aclients_binds") or app.config.get(
-            "ACLIENTS_BINDS", None) or self.aclients_binds
+        self.fessql_binds = kwargs.get("fessql_binds") or app.config.get(
+            "FESSQL_BINDS", None) or self.fessql_binds
         self.verify_binds()
 
         passwd = passwd if passwd is None else str(passwd)
@@ -536,7 +536,7 @@ class AIOMySQL(AlchemyMixIn, object):
         message = kwargs.get("message") or self.message
         use_zh = kwargs.get("use_zh") or self.use_zh
 
-        self.aclients_binds = kwargs.get("aclients_binds") or self.aclients_binds
+        self.fessql_binds = kwargs.get("fessql_binds") or self.fessql_binds
         self.verify_binds()
 
         passwd = passwd if passwd is None else str(passwd)
@@ -575,47 +575,28 @@ class AIOMySQL(AlchemyMixIn, object):
         loop.run_until_complete(open_connection())
         atexit.register(lambda: loop.run_until_complete(close_connection()))
 
-    @staticmethod
-    def verify_app(app):
-        """
-        校验APP类型是否正确
-
-        暂时只支持sanic框架
-        Args:
-
-        Returns:
-
-        """
-
-        try:
-            from sanic import Sanic
-        except ImportError as e:
-            raise ImportError(f"Sanic import error {e}.")
-        else:
-            if not isinstance(app, Sanic):
-                raise FuncArgsError("app type must be Sanic.")
 
     def verify_binds(self, ):
         """
-        校验aclients_binds
+        校验fessql_binds
         Args:
 
         Returns:
 
         """
-        if self.aclients_binds:
-            if not isinstance(self.aclients_binds, dict):
-                raise TypeError("aclients_binds type error, must be Dict.")
-            for bind_name, bind in self.aclients_binds.items():
+        if self.fessql_binds:
+            if not isinstance(self.fessql_binds, dict):
+                raise TypeError("fessql_binds type error, must be Dict.")
+            for bind_name, bind in self.fessql_binds.items():
                 if not isinstance(bind, dict):
-                    raise TypeError(f"aclients_binds config {bind_name} type error, must be Dict.")
+                    raise TypeError(f"fessql_binds config {bind_name} type error, must be Dict.")
                 missing_items = []
-                for item in ["aclients_mysql_host", "aclients_mysql_port", "aclients_mysql_username",
-                             "aclients_mysql_passwd", "aclients_mysql_dbname"]:
+                for item in ["fessql_mysql_host", "fessql_mysql_port", "fessql_mysql_username",
+                             "fessql_mysql_passwd", "fessql_mysql_dbname"]:
                     if item not in bind:
                         missing_items.append(item)
                 if missing_items:
-                    raise ConfigError(f"aclients_binds config {bind_name} error, "
+                    raise ConfigError(f"fessql_binds config {bind_name} error, "
                                       f"missing {' '.join(missing_items)} config item.")
 
     @property
@@ -652,15 +633,15 @@ class AIOMySQL(AlchemyMixIn, object):
         Returns:
 
         """
-        if bind not in self.aclients_binds:
-            raise ValueError("bind is not exist, please config it in the ACLIENTS_BINDS.")
+        if bind not in self.fessql_binds:
+            raise ValueError("bind is not exist, please config it in the FESSQL_BINDS.")
         if bind not in self.engine_pool:
-            bind_conf: Dict = self.aclients_binds[bind]
+            bind_conf: Dict = self.fessql_binds[bind]
             self.engine_pool[bind] = asyncio.get_event_loop().run_until_complete(create_engine(
-                host=bind_conf.get("aclients_mysql_host"), port=bind_conf.get("aclients_mysql_port"),
-                user=bind_conf.get("aclients_mysql_username"), password=bind_conf.get("aclients_mysql_passwd"),
-                db=bind_conf.get("aclients_mysql_dbname"),
-                maxsize=bind_conf.get("aclients_mysql_pool_size") or self.pool_size,
+                host=bind_conf.get("fessql_mysql_host"), port=bind_conf.get("fessql_mysql_port"),
+                user=bind_conf.get("fessql_mysql_username"), password=bind_conf.get("fessql_mysql_passwd"),
+                db=bind_conf.get("fessql_mysql_dbname"),
+                maxsize=bind_conf.get("fessql_mysql_pool_size") or self.pool_size,
                 pool_recycle=self.pool_recycle, charset=self.charset))
         if bind not in self.session_pool:
             self.session_pool[bind] = Session(self.engine_pool[bind], self.message, self.msg_zh, self.max_per_page)

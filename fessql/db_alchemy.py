@@ -99,19 +99,23 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
 
         """
         self.app_ = app
-        self.username = username or app.config.get("ECLIENTS_MYSQL_USERNAME") or self.username
-        passwd = passwd or app.config.get("ECLIENTS_MYSQL_PASSWD") or self.passwd
-        self.host = host or app.config.get("ECLIENTS_MYSQL_HOST") or self.host
-        self.port = port or app.config.get("ECLIENTS_MYSQL_PORT") or self.port
-        self.dbname = dbname or app.config.get("ECLIENTS_MYSQL_DBNAME") or self.dbname
-        self.pool_size = pool_size or app.config.get("ECLIENTS_MYSQL_POOL_SIZE") or self.pool_size
-        self.binds = binds or app.config.get("ECLIENTS_BINDS") or self.binds
-        message = kwargs.get("message") or app.config.get("ECLIENTS_MYSQL_MESSAGE") or self.message
-        use_zh = kwargs.get("use_zh") or app.config.get("ECLIENTS_MYSQL_MSGZH") or self.use_zh
-        self.is_binds = is_binds or app.config.get("ECLIENTS_IS_BINDS") or self.is_binds
-        self.bind_name = bind_name or app.config.get("ECLIENTS_BIND_NAME") or self.bind_name
+        self.username = username or app.config.get("FESSQL_MYSQL_USERNAME") or self.username
+        passwd = passwd or app.config.get("FESSQL_MYSQL_PASSWD") or self.passwd
+        self.host = host or app.config.get("FESSQL_MYSQL_HOST") or self.host
+        self.port = port or app.config.get("FESSQL_MYSQL_PORT") or self.port
+        self.dbname = dbname or app.config.get("FESSQL_MYSQL_DBNAME") or self.dbname
+        self.pool_size = pool_size or app.config.get("FESSQL_MYSQL_POOL_SIZE") or self.pool_size
+
+        self.binds = binds or app.config.get("FESSQL_BINDS") or self.binds
+
+        message = kwargs.get("message") or app.config.get("FESSQL_MYSQL_MESSAGE") or self.message
+        use_zh = kwargs.get("use_zh") or app.config.get("FESSQL_MYSQL_MSGZH") or self.use_zh
+
+        self.is_binds = is_binds or app.config.get("FESSQL_IS_BINDS") or self.is_binds
+        self.bind_name = bind_name or app.config.get("FESSQL_BIND_NAME") or self.bind_name
         self.bind_func = kwargs.get("bind_func") or self.bind_func
-        self.pool_recycle = kwargs.get("pool_recycle") or app.config.get("ECLIENTS_POOL_RECYCLE") or self.pool_recycle
+        
+        self.pool_recycle = kwargs.get("pool_recycle") or app.config.get("FESSQL_POOL_RECYCLE") or self.pool_recycle
         self.charset = kwargs.get("charset") or self.charset
         self.binary_prefix = kwargs.get("binary_prefix") or self.binary_prefix
 
@@ -186,7 +190,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
 
         主要用于在一个视图内部针对同表不同库的数据请求获取
         Args:
-            bind_key: session需要绑定的ECLIENTS_BINDS中的键
+            bind_key: session需要绑定的FESSQL_BINDS中的键
             session_options: create_session 所需要的字典或者关键字参数
         Returns:
 

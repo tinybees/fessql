@@ -12,17 +12,38 @@ import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
+from .err import FuncArgsError
 from .utils import gen_class_name
 
 __all__ = ("AlchemyMixIn",)
 
 
+# noinspection PyUnresolvedReferences
 class AlchemyMixIn(object):
     """
     base alchemy
     """
 
     Model = declarative_base()
+
+    def _verify_sanic_app(self, ):
+        """
+        校验APP类型是否正确
+
+        暂时只支持sanic框架
+        Args:
+
+        Returns:
+
+        """
+
+        try:
+            from sanic import Sanic
+        except ImportError as e:
+            raise ImportError(f"Sanic import error {e}.")
+        else:
+            if not isinstance(self.app, Sanic):
+                raise FuncArgsError("app type must be Sanic.")
 
     def gen_model(self, model_cls, suffix: str = None, **kwargs):
         """
