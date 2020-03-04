@@ -429,7 +429,7 @@ class AIOMySQL(AlchemyMixIn, object):
         # other info
         self.pool_recycle = kwargs.get("pool_recycle", 3600)  # free close time
         self.charset = "utf8mb4"
-        self.fessql_binds: Dict = kwargs.get("fessql_binds")  # binds config
+        self.fessql_binds: Dict = kwargs.get("fessql_binds", {})  # binds config
         self.message = kwargs.get("message", {})
         self.use_zh = kwargs.get("use_zh", True)
         self.max_per_page = kwargs.get("max_per_page", None)
@@ -575,7 +575,6 @@ class AIOMySQL(AlchemyMixIn, object):
         loop.run_until_complete(open_connection())
         atexit.register(lambda: loop.run_until_complete(close_connection()))
 
-
     def verify_binds(self, ):
         """
         校验fessql_binds
@@ -625,7 +624,7 @@ class AIOMySQL(AlchemyMixIn, object):
             self.session_pool[None] = Session(self.engine_pool[None], self.message, self.msg_zh, self.max_per_page)
         return self.session_pool[None]
 
-    def gen_session(self, bind: str) -> Session:
+    async def gen_session(self, bind: str) -> Session:
         """
         session bind
         Args:
@@ -637,12 +636,12 @@ class AIOMySQL(AlchemyMixIn, object):
             raise ValueError("bind is not exist, please config it in the FESSQL_BINDS.")
         if bind not in self.engine_pool:
             bind_conf: Dict = self.fessql_binds[bind]
-            self.engine_pool[bind] = asyncio.get_event_loop().run_until_complete(create_engine(
+            self.engine_pool[bind] = await create_engine(
                 host=bind_conf.get("fessql_mysql_host"), port=bind_conf.get("fessql_mysql_port"),
                 user=bind_conf.get("fessql_mysql_username"), password=bind_conf.get("fessql_mysql_passwd"),
                 db=bind_conf.get("fessql_mysql_dbname"),
                 maxsize=bind_conf.get("fessql_mysql_pool_size") or self.pool_size,
-                pool_recycle=self.pool_recycle, charset=self.charset))
+                pool_recycle=self.pool_recycle, charset=self.charset)
         if bind not in self.session_pool:
             self.session_pool[bind] = Session(self.engine_pool[bind], self.message, self.msg_zh, self.max_per_page)
         return self.session_pool[bind]
