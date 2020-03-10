@@ -21,6 +21,8 @@
 - 增加jrpc客户端单个方法请求的功能,调用形式和普通的函数调用形式一致
 - 增加jrpc客户端批量方法请求的功能,调用形式类似链式调用
 - 增加jrpc服务端jsonrpc子类, http和websocket的URL固定和client中的一致
+- 对aiomysql类进行拆分为reader类和writer类,reader类会自动commit增加读取的效率
+- 对session类也进行拆分为和reader writer对应的session reader和sessionwriter 
 
 #### Changed 
 - 优化所有代码中没有类型标注的地方,都改为typing中的类型标注
@@ -29,3 +31,4 @@
 - 更改jsonrpc三方包中queue没有使用同一个loop而造成的错误
 - 再次重构session和query类彻底把query和session分开
 - 拆分aclients库和eclients中的和数据库相关的功能形成新的库
+- 使用的时候建议直接使用reader类或者writer类

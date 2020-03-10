@@ -9,7 +9,7 @@
 import asyncio
 import atexit
 from math import ceil
-from typing import (Dict, List, MutableMapping, Optional, Tuple, Union)
+from typing import (Dict, List, MutableMapping, NoReturn, Optional, Tuple, Union)
 
 import aelog
 from aiomysql.sa import create_engine
@@ -25,7 +25,7 @@ from .err import ConfigError, DBDuplicateKeyError, DBError, FuncArgsError, HttpE
 from .query import Query
 from .utils import _verify_message
 
-__all__ = ("AIOMySQL",)
+__all__ = ("AIOMySQLReader", "AIOMySQLWriter")
 
 
 # noinspection PyProtectedMember
@@ -37,10 +37,10 @@ class Pagination(object):
     no longer work.
     """
 
-    def __init__(self, db_client: 'Session', query: Query, total: int, items: List[Dict]):
+    def __init__(self, db_client: 'SessionReader', query: Query, total: int, items: List[Dict]):
         #: the unlimited query object that was used to create this
         #: aiomysqlclient object.
-        self._db_client: Session = db_client
+        self.session: SessionReader = db_client
         #: select query
         self._query: Query = query
         #: the current page number (1 indexed)
@@ -65,7 +65,7 @@ class Pagination(object):
         """Returns a :class:`Pagination` object for the previous page."""
         self._query._offset_clause = (self.page - 1 - 1) * self.per_page
         self._query.select_query()  # 重新生成分页SQL
-        return await self._db_client._find_data(self._query)
+        return await self.session._find_data(self._query)
 
     @property
     def prev_num(self) -> int:
@@ -83,7 +83,7 @@ class Pagination(object):
         """Returns a :class:`Pagination` object for the next page."""
         self._query._offset_clause = self.page - 1 + 1 * self.per_page
         self._query.select_query()  # 重新生成分页SQL
-        return await self._db_client._find_data(self._query)
+        return await self.session._find_data(self._query)
 
     @property
     def has_next(self) -> bool:
@@ -99,12 +99,12 @@ class Pagination(object):
 
 
 # noinspection PyProtectedMember
-class Session(object):
+class SessionReader(object):
     """
-    query session
+    query session reader
     """
 
-    def __init__(self, aio_engine, message: Dict, msg_zh: str, max_per_page: int):
+    def __init__(self, aio_engine, message: Dict, msg_zh: str):
         """
             query session
         Args:
@@ -113,7 +113,6 @@ class Session(object):
         self.aio_engine = aio_engine
         self.message = message
         self.msg_zh = msg_zh
-        self.max_per_page = max_per_page
 
     async def _query_execute(self, query: Union[Select, str], params: Dict = None) -> ResultProxy:
         """
@@ -136,64 +135,6 @@ class Session(object):
 
         return cursor
 
-    async def _execute(self, query: Union[Insert, Update, str], params: Union[List[Dict], Dict], msg_code: int
-                       ) -> ResultProxy:
-        """
-        插入数据，更新或者删除数据
-        Args:
-            query: SQL的查询字符串或者sqlalchemy表达式
-            params: 执行的参数值,可以是单个对象的字典也可以是多个对象的列表
-            msg_code: 消息提示编码
-        Returns:
-            不确定执行的是什么查询，直接返回ResultProxy实例
-        """
-        async with self.aio_engine.acquire() as conn:
-            async with conn.begin() as trans:
-                try:
-                    cursor = await conn.execute(query, params)
-                except IntegrityError as e:
-                    await trans.rollback()
-                    aelog.exception(e)
-                    if "Duplicate" in str(e):
-                        raise DBDuplicateKeyError(e)
-                    else:
-                        raise DBError(e)
-                except (MySQLError, Error) as e:
-                    await trans.rollback()
-                    aelog.exception(e)
-                    raise DBError(e)
-                except Exception as e:
-                    await trans.rollback()
-                    aelog.exception(e)
-                    raise HttpError(400, message=self.message[msg_code][self.msg_zh])
-                else:
-                    await trans.commit()
-        return cursor
-
-    async def _delete_execute(self, query: Union[Delete, str]) -> int:
-        """
-        删除数据
-        Args:
-            query: Query 查询类
-        Returns:
-            返回删除的条数
-        """
-        async with self.aio_engine.acquire() as conn:
-            async with conn.begin() as trans:
-                try:
-                    cursor = await conn.execute(query)
-                except (MySQLError, Error) as e:
-                    await trans.rollback()
-                    aelog.exception(e)
-                    raise DBError(e)
-                except Exception as e:
-                    await trans.rollback()
-                    aelog.exception(e)
-                    raise HttpError(400, message=self.message[3][self.msg_zh])
-                else:
-                    await trans.commit()
-        return cursor.rowcount
-
     async def _find_data(self, query: Query) -> List[RowProxy]:
         """
         查询单条数据
@@ -204,19 +145,6 @@ class Session(object):
         """
         cursor = await self._query_execute(query._query_obj)
         return await cursor.fetchall() if cursor.returns_rows else []
-
-    async def execute(self, query: Union[TextClause, str], params: Union[List[Dict], Dict]) -> int:
-        """
-        插入数据，更新或者删除数据
-        Args:
-            query: SQL的查询字符串
-            params: 执行的参数值,可以是单个对象的字典也可以是多个对象的列表
-        Returns:
-            返回更新,插入或者删除影响的条数
-        """
-        params = dict(params) if isinstance(params, MutableMapping) else {}
-        cursor = await self._execute(query, params, 6)
-        return cursor.rowcount
 
     async def query_execute(self, query: Union[TextClause, str], params: Dict = None, size=None, cursor_close=True
                             ) -> Union[List[RowProxy], RowProxy, None]:
@@ -246,54 +174,6 @@ class Session(object):
             await cursor.close()
 
         return resp
-
-    async def insert_one(self, query: Query) -> Tuple[int, str]:
-        """
-        插入数据
-        Args:
-           query: Query 查询类
-        Returns:
-            (插入的条数,插入的ID)
-        """
-        if not isinstance(query, Query):
-            raise FuncArgsError("query type error!")
-
-        cursor = await self._execute(query._query_obj, query._insert_data, 1)
-        return cursor.rowcount, query._insert_data.get("id") or cursor.lastrowid
-
-    async def insert_many(self, query: Query) -> int:
-        """
-        插入多条数据
-
-        eg: User.insert().values([{"name": "test1"}, {"name": "test2"}]
-        Args:
-           query: Query 查询类
-        Returns:
-            插入的条数
-        """
-        if not isinstance(query, Query):
-            raise FuncArgsError("query type error!")
-
-        cursor = await self._execute(query._query_obj, query._insert_data, 1)
-        return cursor.rowcount
-
-    async def insert_from_select(self, query: Query) -> Tuple[int, str]:
-        """
-        查询并且插入数据, ``INSERT...FROM SELECT`` statement.
-
-        e.g.::
-            sel = select([table1.c.a, table1.c.b]).where(table1.c.c > 5)
-            ins = table2.insert().from_select(['a', 'b'], sel)
-        Args:
-            query: Query 查询类
-        Returns:
-            (插入的条数,插入的ID)
-        """
-        if not isinstance(query, Query):
-            raise FuncArgsError("query type error!")
-
-        cursor = await self._execute(query._query_obj, {}, 1)
-        return cursor.rowcount, cursor.lastrowid
 
     async def find_one(self, query: Query) -> Optional[RowProxy]:
         """
@@ -360,6 +240,142 @@ class Session(object):
         cursor = await self._query_execute(query._query_count_obj)
         return await cursor.first()
 
+
+# noinspection PyProtectedMember
+class SessionWriter(object):
+    """
+    query session writer
+    """
+
+    def __init__(self, aio_engine, message: Dict, msg_zh: str):
+        """
+            query session
+        Args:
+
+        """
+        self.aio_engine = aio_engine
+        self.message = message
+        self.msg_zh = msg_zh
+
+    async def _execute(self, query: Union[Insert, Update, str], params: Union[List[Dict], Dict], msg_code: int
+                       ) -> ResultProxy:
+        """
+        插入数据，更新或者删除数据
+        Args:
+            query: SQL的查询字符串或者sqlalchemy表达式
+            params: 执行的参数值,可以是单个对象的字典也可以是多个对象的列表
+            msg_code: 消息提示编码
+        Returns:
+            不确定执行的是什么查询，直接返回ResultProxy实例
+        """
+        async with self.aio_engine.acquire() as conn:
+            async with conn.begin() as trans:
+                try:
+                    cursor = await conn.execute(query, params)
+                except IntegrityError as e:
+                    await trans.rollback()
+                    aelog.exception(e)
+                    if "Duplicate" in str(e):
+                        raise DBDuplicateKeyError(e)
+                    else:
+                        raise DBError(e)
+                except (MySQLError, Error) as e:
+                    await trans.rollback()
+                    aelog.exception(e)
+                    raise DBError(e)
+                except Exception as e:
+                    await trans.rollback()
+                    aelog.exception(e)
+                    raise HttpError(400, message=self.message[msg_code][self.msg_zh])
+                else:
+                    await trans.commit()
+        return cursor
+
+    async def _delete_execute(self, query: Union[Delete, str]) -> int:
+        """
+        删除数据
+        Args:
+            query: Query 查询类
+        Returns:
+            返回删除的条数
+        """
+        async with self.aio_engine.acquire() as conn:
+            async with conn.begin() as trans:
+                try:
+                    cursor = await conn.execute(query)
+                except (MySQLError, Error) as e:
+                    await trans.rollback()
+                    aelog.exception(e)
+                    raise DBError(e)
+                except Exception as e:
+                    await trans.rollback()
+                    aelog.exception(e)
+                    raise HttpError(400, message=self.message[3][self.msg_zh])
+                else:
+                    await trans.commit()
+        return cursor.rowcount
+
+    async def execute(self, query: Union[TextClause, str], params: Union[List[Dict], Dict]) -> int:
+        """
+        插入数据，更新或者删除数据
+        Args:
+            query: SQL的查询字符串
+            params: 执行的参数值,可以是单个对象的字典也可以是多个对象的列表
+        Returns:
+            返回更新,插入或者删除影响的条数
+        """
+        params = dict(params) if isinstance(params, MutableMapping) else {}
+        cursor = await self._execute(query, params, 6)
+        return cursor.rowcount
+
+    async def insert_one(self, query: Query) -> Tuple[int, str]:
+        """
+        插入数据
+        Args:
+           query: Query 查询类
+        Returns:
+            (插入的条数,插入的ID)
+        """
+        if not isinstance(query, Query):
+            raise FuncArgsError("query type error!")
+
+        cursor = await self._execute(query._query_obj, query._insert_data, 1)
+        return cursor.rowcount, query._insert_data.get("id") or cursor.lastrowid
+
+    async def insert_many(self, query: Query) -> int:
+        """
+        插入多条数据
+
+        eg: User.insert().values([{"name": "test1"}, {"name": "test2"}]
+        Args:
+           query: Query 查询类
+        Returns:
+            插入的条数
+        """
+        if not isinstance(query, Query):
+            raise FuncArgsError("query type error!")
+
+        cursor = await self._execute(query._query_obj, query._insert_data, 1)
+        return cursor.rowcount
+
+    async def insert_from_select(self, query: Query) -> Tuple[int, str]:
+        """
+        查询并且插入数据, ``INSERT...FROM SELECT`` statement.
+
+        e.g.::
+            sel = select([table1.c.a, table1.c.b]).where(table1.c.c > 5)
+            ins = table2.insert().from_select(['a', 'b'], sel)
+        Args:
+            query: Query 查询类
+        Returns:
+            (插入的条数,插入的ID)
+        """
+        if not isinstance(query, Query):
+            raise FuncArgsError("query type error!")
+
+        cursor = await self._execute(query._query_obj, {}, 1)
+        return cursor.rowcount, cursor.lastrowid
+
     async def update_data(self, query: Query) -> int:
         """
         更新数据
@@ -391,7 +407,7 @@ class Session(object):
         return await self._delete_execute(query._query_obj)
 
 
-class AIOMySQL(AlchemyMixIn, object):
+class _AIOMySQL(AlchemyMixIn, object):
     """
     MySQL异步操作指南
     """
@@ -434,6 +450,7 @@ class AIOMySQL(AlchemyMixIn, object):
         self.use_zh = kwargs.get("use_zh", True)
         self.max_per_page = kwargs.get("max_per_page", None)
         self.msg_zh = None
+        self.autocommit = False  # 自动提交开关,默认和connection中的默认值一致
 
         if app is not None:
             self.init_app(app, username=self.username, passwd=self.passwd, host=self.host, port=self.port,
@@ -492,7 +509,7 @@ class AIOMySQL(AlchemyMixIn, object):
             # engine
             self.engine_pool[None] = await create_engine(
                 user=username, db=dbname, host=host, port=port, password=passwd, maxsize=self.pool_size,
-                pool_recycle=self.pool_recycle, charset=self.charset)
+                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit)
 
         @app.listener('after_server_stop')
         async def close_connection(app_, loop):
@@ -556,7 +573,7 @@ class AIOMySQL(AlchemyMixIn, object):
             # engine
             self.engine_pool[None] = await create_engine(
                 host=host, port=port, user=username, password=passwd, db=dbname, maxsize=self.pool_size,
-                pool_recycle=self.pool_recycle, charset=self.charset)
+                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit)
 
         async def close_connection():
             """
@@ -609,22 +626,7 @@ class AIOMySQL(AlchemyMixIn, object):
         """
         return Query(self.max_per_page)
 
-    @property
-    def session(self, ) -> Session:
-        """
-        session default bind
-        Args:
-
-        Returns:
-
-        """
-        if None not in self.engine_pool:
-            raise ValueError("Default bind is not exist.")
-        if None not in self.session_pool:
-            self.session_pool[None] = Session(self.engine_pool[None], self.message, self.msg_zh, self.max_per_page)
-        return self.session_pool[None]
-
-    async def gen_session(self, bind: str) -> Session:
+    async def _create_engine(self, bind: str) -> NoReturn:
         """
         session bind
         Args:
@@ -641,7 +643,101 @@ class AIOMySQL(AlchemyMixIn, object):
                 user=bind_conf.get("fessql_mysql_username"), password=bind_conf.get("fessql_mysql_passwd"),
                 db=bind_conf.get("fessql_mysql_dbname"),
                 maxsize=bind_conf.get("fessql_mysql_pool_size") or self.pool_size,
-                pool_recycle=self.pool_recycle, charset=self.charset)
+                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit)
+
+
+class AIOMySQLReader(_AIOMySQL):
+    """
+    MySQL读取异步操作指南
+    """
+
+    def __init__(self, app=None, *, username: str = "root", passwd: str = None, host: str = "127.0.0.1",
+                 port: int = 3306, dbname: str = None, pool_size: int = 10, **kwargs):
+        """
+        mysql 非阻塞工具类
+        Args:
+            app: app应用
+            host:mysql host
+            port:mysql port
+            dbname: database name
+            username: mysql user
+            passwd: mysql password
+            pool_size: mysql pool size
+            pool_recycle: pool recycle time, type int
+            fessql_binds: binds config, eg:{"first":{"fessql_mysql_host":"127.0.0.1",
+                                                    "fessql_mysql_port":3306,
+                                                    "fessql_mysql_username":"root",
+                                                    "fessql_mysql_passwd":"",
+                                                    "fessql_mysql_dbname":"dbname",
+                                                    "fessql_mysql_pool_size":10}}
+        """
+        # 读取的时候自动提交为true, 这样查询的时候就不用commit了
+        # 因为如果是读写分离的操作,则发现写入commit后,再次读取的时候读取不到最新的数据,除非读取的时候手动增加commit的操作
+        # 而这一步操作会感觉是非常不必要的,除非在同一个connection中才不用增加,而对于读写分离的操作是不现实的
+        # 而读取的操作占多数设置自动commit后可以提高查询的效率,所以这里把此分开
+        self.autocommit = True
+
+        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname,
+                         pool_size=pool_size, **kwargs)
+
+    @property
+    def session(self, ) -> SessionReader:
+        """
+        session default bind
+        Args:
+
+        Returns:
+
+        """
+        if None not in self.engine_pool:
+            raise ValueError("Default bind is not exist.")
+        if None not in self.session_pool:
+            self.session_pool[None] = SessionReader(self.engine_pool[None], self.message, self.msg_zh)
+        return self.session_pool[None]
+
+    async def gen_session(self, bind: str) -> SessionReader:
+        """
+        session bind
+        Args:
+            bind: engine pool one of connection
+        Returns:
+
+        """
+        await self._create_engine(bind)
         if bind not in self.session_pool:
-            self.session_pool[bind] = Session(self.engine_pool[bind], self.message, self.msg_zh, self.max_per_page)
+            self.session_pool[bind] = SessionReader(self.engine_pool[bind], self.message, self.msg_zh)
+        return self.session_pool[bind]
+
+
+class AIOMySQLWriter(_AIOMySQL):
+    """
+    MySQL更新异步操作指南
+    """
+
+    @property
+    def session(self, ) -> SessionWriter:
+        """
+        session default bind
+        Args:
+
+        Returns:
+
+        """
+        if None not in self.engine_pool:
+            raise ValueError("Default bind is not exist.")
+        if None not in self.session_pool:
+            self.session_pool[None] = SessionWriter(self.engine_pool[None], self.message, self.msg_zh)
+        return self.session_pool[None]
+
+    async def gen_session(self, bind: str) -> SessionWriter:
+        """
+        session bind
+        Args:
+            bind: engine pool one of connection
+        Returns:
+
+        """
+        await self._create_engine(bind)
+        if bind not in self.session_pool:
+            self.session_pool[bind] = SessionWriter(self.engine_pool[bind], self.message, self.msg_zh)
         return self.session_pool[bind]
