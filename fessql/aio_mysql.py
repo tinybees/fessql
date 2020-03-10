@@ -671,14 +671,14 @@ class AIOMySQLReader(_AIOMySQL):
                                                     "fessql_mysql_dbname":"dbname",
                                                     "fessql_mysql_pool_size":10}}
         """
+        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname,
+                         pool_size=pool_size, **kwargs)
+
         # 读取的时候自动提交为true, 这样查询的时候就不用commit了
         # 因为如果是读写分离的操作,则发现写入commit后,再次读取的时候读取不到最新的数据,除非读取的时候手动增加commit的操作
         # 而这一步操作会感觉是非常不必要的,除非在同一个connection中才不用增加,而对于读写分离的操作是不现实的
         # 而读取的操作占多数设置自动commit后可以提高查询的效率,所以这里把此分开
         self.autocommit = True
-
-        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname,
-                         pool_size=pool_size, **kwargs)
 
     @property
     def session(self, ) -> SessionReader:
