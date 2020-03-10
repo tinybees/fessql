@@ -225,17 +225,15 @@ class Query(BaseQuery):
 
         super().__init__()
 
-    @staticmethod
-    def _get_model_default_value(model) -> Dict:
+    def _get_model_default_value(self, ) -> Dict:
         """
-
+        获取insert默认值
         Args:
-            model
         Returns:
 
         """
         default_values = {}
-        for key, val in model.__dict__.items():
+        for key, val in self._model.__dict__.items():
             if not key.startswith("_") and isinstance(val, InstrumentedAttribute):
                 if val.default:
                     if val.default.is_callable:
@@ -244,17 +242,15 @@ class Query(BaseQuery):
                         default_values[key] = val.default.arg
         return default_values
 
-    @staticmethod
-    def _get_model_onupdate_value(model) -> Dict:
+    def _get_model_onupdate_value(self, ) -> Dict:
         """
-
+        获取update默认值
         Args:
-            model
         Returns:
 
         """
         update_values = {}
-        for key, val in model.__dict__.items():
+        for key, val in self._model.__dict__.items():
             if not key.startswith("_") and isinstance(val, InstrumentedAttribute):
                 if val.onupdate and val.onupdate.is_callable:
                     update_values[key] = val.onupdate.arg.__wrapped__()
@@ -350,11 +346,10 @@ class Query(BaseQuery):
         """
         self._verify_model()
         try:
-            insert_data_ = self._get_model_default_value(self._model)
             if isinstance(insert_data, dict):
-                insert_data_.update(insert_data)
+                insert_data_ = {**self._get_model_default_value(), **insert_data}
             else:
-                insert_data_ = [{**insert_data_, **one_data} for one_data in insert_data]
+                insert_data_ = [{**self._get_model_default_value(), **one_data} for one_data in insert_data]
             query = insert(self._model).values(insert_data_)
         except SQLAlchemyError as e:
             aelog.exception(e)
@@ -376,11 +371,11 @@ class Query(BaseQuery):
         """
         self._verify_model()
         try:
-            update_data_ = self._get_model_onupdate_value(self._model)
+
             if isinstance(update_data, MutableMapping):
-                update_data_ = {**update_data_, **update_data}
+                update_data_ = {**self._get_model_onupdate_value(), **update_data}
             else:
-                update_data_ = [{**update_data_, **one_data} for one_data in update_data]
+                update_data_ = [{**self._get_model_onupdate_value(), **one_data} for one_data in update_data]
 
             if self._bind_values is None:
                 query = update(self._model).values(update_data_)
