@@ -114,7 +114,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         self.is_binds = is_binds or app.config.get("FESSQL_IS_BINDS") or self.is_binds
         self.bind_name = bind_name or app.config.get("FESSQL_BIND_NAME") or self.bind_name
         self.bind_func = kwargs.get("bind_func") or self.bind_func
-        
+
         self.pool_recycle = kwargs.get("pool_recycle") or app.config.get("FESSQL_POOL_RECYCLE") or self.pool_recycle
         self.charset = kwargs.get("charset") or self.charset
         self.binary_prefix = kwargs.get("binary_prefix") or self.binary_prefix
@@ -355,8 +355,8 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             session.commit()
             return cursor
 
-    def execute(self, query: Union[Query, str], params: Dict = None, session: Session = None, size: int = None,
-                cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
+    def execute(self, query: Union[Query, str], params: Union[List[Dict], Dict] = None, session: Session = None,
+                size: int = None, cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
         """
         插入数据，更新或者删除数据
         Args:
@@ -368,7 +368,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         Returns:
             List[RowProxy] or RowProxy or None
         """
-        params = dict(params) if isinstance(params, MutableMapping) else {}
+        params = params if isinstance(params, (MutableMapping, MutableSequence)) else {}
         cursor = self._execute(query, params, session)
         if size is None:
             resp = cursor.fetchall() if cursor.returns_rows else []

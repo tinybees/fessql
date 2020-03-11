@@ -8,6 +8,7 @@
 """
 import asyncio
 import atexit
+from collections import MutableSequence
 from math import ceil
 from typing import (Dict, List, MutableMapping, NoReturn, Optional, Tuple, Union)
 
@@ -160,7 +161,7 @@ class SessionReader(object):
         Returns:
             List[RowProxy] or RowProxy or None
         """
-        params = dict(params) if isinstance(params, MutableMapping) else {}
+        params = params if isinstance(params, MutableMapping) else {}
         cursor = await self._query_execute(query, params)
 
         if size is None:
@@ -324,7 +325,7 @@ class SessionWriter(object):
         Returns:
             返回更新,插入或者删除影响的条数
         """
-        params = dict(params) if isinstance(params, MutableMapping) else {}
+        params = params if isinstance(params, (MutableMapping, MutableSequence)) else {}
         cursor = await self._execute(query, params, 6)
         return cursor.rowcount
 
