@@ -47,7 +47,7 @@ class BaseQuery(object):
         self._union: List = None
         self._union_all: List = None
         self._with_hint: List = None
-        self._bind_values: Dict = None
+        self._bind_values: List = []
         # limit, offset
         self._limit_clause: int = None
         self._offset_clause: int = None
@@ -190,9 +190,9 @@ class BaseQuery(object):
         self._with_hint = [selectable, text_, dialect_name]
         return self
 
-    def values(self, **kwargs) -> 'BaseQuery':
+    def values(self, *args) -> 'BaseQuery':
         r"""specify a fixed VALUES clause for an SET clause for an UPDATE."""
-        self._bind_values = kwargs
+        self._bind_values.extend(args)
         return self
 
 
@@ -287,19 +287,25 @@ class Query(BaseQuery):
         """
         bind_params = _distill_params(multiparams, {})
 
-        if isinstance(query, str):
-            query_, params_ = (query, bind_params) if len(bind_params) > 1 else (query, bind_params or None)
-        else:
-            compiled = query.compile(dialect=_dialect)
-            query_, params_ = str(compiled), None
-
-            if len(bind_params) > 1:
+        if len(bind_params) > 1:
+            if isinstance(query, str):
+                query_, params_ = query, bind_params
+            else:
+                compiled = query.compile(dialect=_dialect)
+                query_ = str(compiled)
                 params_ = []
                 for bind_param in bind_params:
                     params_.append(self._base_params(query, bind_param, compiled, isinstance(query, UpdateBase)))
-            elif bind_params:
+        else:
+            if bind_params:
                 bind_params = bind_params[0]
-            params_ = self._base_params(query, bind_params, compiled, isinstance(query, UpdateBase))
+
+            if isinstance(query, str):
+                query_, params_ = query, bind_params or None
+            else:
+                compiled = query.compile(dialect=_dialect)
+                query_ = str(compiled)
+                params_ = self._base_params(query, bind_params, compiled, isinstance(query, UpdateBase))
 
         return {"sql": query_, "params": params_}
 
@@ -348,9 +354,10 @@ class Query(BaseQuery):
         try:
             if isinstance(insert_data, dict):
                 insert_data_ = {**self._get_model_default_value(), **insert_data}
+                query = insert(self._model).values(insert_data_)
             else:
                 insert_data_ = [{**self._get_model_default_value(), **one_data} for one_data in insert_data]
-            query = insert(self._model).values(insert_data_)
+                query = insert(self._model).values(insert_data_[0])
         except SQLAlchemyError as e:
             aelog.exception(e)
             raise QueryArgsError(message="Cloumn args error: {}".format(str(e)))
@@ -374,13 +381,14 @@ class Query(BaseQuery):
 
             if isinstance(update_data, MutableMapping):
                 update_data_ = {**self._get_model_onupdate_value(), **update_data}
+                values_data = update_data_ if not self._bind_values else {
+                    key: val for key, val in update_data_.items() if key in self._bind_values}
             else:
                 update_data_ = [{**self._get_model_onupdate_value(), **one_data} for one_data in update_data]
+                values_data = update_data_[0] if not self._bind_values else {
+                    key: val for key, val in update_data_[0].items() if key in self._bind_values}
 
-            if self._bind_values is None:
-                query = update(self._model).values(update_data_)
-            else:
-                query = update(self._model).values(self._bind_values)
+            query = update(self._model).values(values_data)
             for one_clause in self._whereclause:
                 query = query.where(one_clause)
         except SQLAlchemyError as e:
