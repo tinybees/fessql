@@ -6,10 +6,10 @@
 @software: PyCharm
 @time: 2020/3/1 下午3:51
 """
-from typing import Dict, MutableMapping, MutableSequence
+from typing import Dict, List, MutableMapping, MutableSequence, Tuple, Union
 
 import sqlalchemy as sa
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 from .err import FuncArgsError
@@ -45,8 +45,8 @@ class AlchemyMixIn(object):
             if not isinstance(self.app, Sanic):
                 raise FuncArgsError("app type must be Sanic.")
 
-    def gen_model(self, model_cls, class_suffix: str = None, table_suffix: str = None,
-                  field_mapping: Dict[str, str] = None, fields: MutableSequence[str] = None):
+    def gen_model(self, model_cls: DeclarativeMeta, class_suffix: str = None, table_suffix: str = None,
+                  field_mapping: Dict[str, str] = None, fields: Union[Tuple[str], List[str]] = None):
         """
         用于根据现有的model生成新的model类
 
