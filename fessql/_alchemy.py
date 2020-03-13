@@ -83,7 +83,7 @@ class AlchemyMixIn(object):
         if model_cls_ is None:
             model_fields = {}
             field_mapping = {} if not isinstance(field_mapping, MutableMapping) else field_mapping
-            fields = tuple() if not isinstance(field_mapping, MutableSequence) else (*fields, *field_mapping.keys())
+            fields = tuple() if not isinstance(fields, MutableSequence) else (*fields, *field_mapping.keys())
             for attr_name, field in model_cls.__dict__.items():
                 if isinstance(field, InstrumentedAttribute) and not attr_name.startswith("_"):
                     if fields and attr_name not in fields:
