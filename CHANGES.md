@@ -32,3 +32,4 @@
 - 再次重构session和query类彻底把query和session分开
 - 拆分aclients库和eclients中的和数据库相关的功能形成新的库
 - 使用的时候建议直接使用reader类或者writer类
+- 修改生成model的功能适配字段映射,model类字段增减等功能,适用于同一个model适配不同的库表
