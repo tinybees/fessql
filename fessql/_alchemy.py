@@ -74,7 +74,7 @@ class AlchemyMixIn(object):
         else:
             class_name = f"{gen_class_name(table_name)}Model"
         if table_suffix:
-            table_name = f"{getattr(model_cls, '__tablename__', model_cls.__name__)}_{table_suffix}"
+            table_name = f"{table_name}_{table_suffix}"
 
         if getattr(model_cls, "_cache_class", None) is None:
             setattr(model_cls, "_cache_class", {})
