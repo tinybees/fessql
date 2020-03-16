@@ -306,7 +306,10 @@ class Query(BaseQuery):
                 compiled = query.compile(dialect=_dialect)
                 query_ = str(compiled)
                 params_ = self._base_params(query, bind_params, compiled, isinstance(query, UpdateBase))
-
+        # 处理自动增加的后缀
+        if getattr(self._model, "__table_suffix__", None) is not None:
+            query_ = query_.replace(getattr(self._model, "__table_suffix__"), "")
+            
         return {"sql": query_, "params": params_}
 
     def _verify_model(self, ):
