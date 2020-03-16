@@ -105,7 +105,7 @@ class AlchemyMixIn(object):
             # 如果schema参数不为空,证明已经指明了分库,这里就不做处理了
             # 这里只处理不分库但是table_name重复的情况,自动增加表明的后缀
             table_suffix_ = None
-            if table_args["schema"] is None and table_name in self.Model.metadata.tables:
+            if table_args.get("schema") is None and table_name in self.Model.metadata.tables:
                 table_suffix_ = f"_{uuid.uuid4().hex}"
                 table_name = f"{table_name}{table_suffix_}"
             model_cls_ = type(class_name, (self.Model,), {
