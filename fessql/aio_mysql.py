@@ -82,7 +82,7 @@ class Pagination(object):
 
     async def next(self, ) -> List[RowProxy]:
         """Returns a :class:`Pagination` object for the next page."""
-        self._query._offset_clause = self.page - 1 + 1 * self.per_page
+        self._query._offset_clause = (self.page - 1 + 1) * self.per_page
         self._query.select_query()  # 重新生成分页SQL
         return await self.session._find_data(self._query)
 

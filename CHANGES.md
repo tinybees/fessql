@@ -1,5 +1,11 @@
 ## fessql Changelog
 
+###[1.0.1b3] - 2020-3-18
+
+#### Changed 
+- 更改Pagination获取下一页时计数错误的问题
+
+
 ###[1.0.1b2] - 2020-3-1
 
 #### Added 

@@ -31,4 +31,4 @@ __all__ = (
     "DBAlchemy",
 )
 
-__version__ = "1.0.1b2"
+__version__ = "1.0.1b3"
