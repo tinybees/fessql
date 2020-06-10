@@ -4,6 +4,7 @@
 
 #### Changed 
 - 更改Pagination获取下一页时计数错误的问题
+- 更改session的commit提交的时机
 
 
 ###[1.0.1b2] - 2020-3-1

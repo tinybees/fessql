@@ -255,6 +255,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         session = self.session if session is None else session
         try:
             yield self
+            session.commit()
         except IntegrityError as e:
             session.rollback()
             if "Duplicate" in str(e):
@@ -269,8 +270,6 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             session.rollback()
             aelog.exception(e)
             raise HttpError(400, message=self.message[1][self.msg_zh], error=e)
-        else:
-            session.commit()
 
     @contextmanager
     def update_context(self, session: Session = None) -> 'DBAlchemy':
@@ -284,6 +283,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         session = self.session if session is None else session
         try:
             yield self
+            session.commit()
         except IntegrityError as e:
             session.rollback()
             if "Duplicate" in str(e):
@@ -298,8 +298,6 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             session.rollback()
             aelog.exception(e)
             raise HttpError(400, message=self.message[2][self.msg_zh], error=e)
-        else:
-            session.commit()
 
     @contextmanager
     def delete_context(self, session: Session = None) -> 'DBAlchemy':
@@ -313,6 +311,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         session = self.session if session is None else session
         try:
             yield self
+            session.commit()
         except DatabaseError as e:
             session.rollback()
             aelog.exception(e)
@@ -321,8 +320,6 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             session.rollback()
             aelog.exception(e)
             raise HttpError(400, message=self.message[3][self.msg_zh], error=e)
-        else:
-            session.commit()
 
     def _execute(self, query: Union[Query, str], params: Dict = None, session: Session = None) -> ResultProxy:
         """
@@ -337,6 +334,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         session = self.session if session is None else session
         try:
             cursor = session.execute(query, params)
+            session.commit()
         except IntegrityError as e:
             session.rollback()
             if "Duplicate" in str(e):
@@ -352,7 +350,6 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             aelog.exception(e)
             raise HttpError(400, message=self.message[2][self.msg_zh], error=e)
         else:
-            session.commit()
             return cursor
 
     def execute(self, query: Union[Query, str], params: Union[List[Dict], Dict] = None, session: Session = None,
