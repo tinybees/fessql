@@ -42,7 +42,7 @@ setup(name='fessql',
                         'aiomysql>=0.0.20',
                         'sqlalchemy>=1.2.12',
                         'flask-sqlalchemy>=2.3.2,<=2.4.1'],
-      python_requires=">=3.5",
+      python_requires=">=3.6",
       keywords="mysql, asyncio, crud, session",
       license='MIT',
       classifiers=[
@@ -56,7 +56,7 @@ setup(name='fessql',
           'Topic :: Software Development :: Libraries :: Python Modules',
           'Topic :: Utilities',
           'Programming Language :: Python',
-          'Programming Language :: Python :: 3.5',
           'Programming Language :: Python :: 3.6',
-          'Programming Language :: Python :: 3.7']
+          'Programming Language :: Python :: 3.7',
+          'Programming Language :: Python :: 3.8']
       )

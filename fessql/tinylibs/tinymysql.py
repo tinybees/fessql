@@ -6,10 +6,11 @@
 @software: PyCharm
 @time: 19-4-2 上午9:04
 """
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import aelog
 import pymysql
+from pymysql.connections import Connection
 
 __all__ = ("TinyMysql",)
 
@@ -23,49 +24,74 @@ class TinyMysql(object):
 
     """
 
-    def __init__(self, db_host: str = "127.0.0.1", db_port: int = 3306, db_name: str = None,
-                 db_user: str = "root", db_pwd: str = "123456"):
+    def __init__(self, db_user: str, db_pwd: str, db_host: str = "127.0.0.1", db_port: int = 3306,
+                 db_name: str = None):
         """
             pymysql 操作数据库的各种方法
         Args:
-
+            db_user: 用户名
+            db_pwd: 密码
+            db_host: host
+            db_port: port
+            db_name: 数据库名称
         Returns:
 
         """
-        self.conn_pool = {}  # 各个不同连接的连接池
+        self._conn: Optional[Connection] = None
         self.db_host = db_host
         self.db_port = db_port
         self.db_user = db_user
         self.db_pwd = db_pwd
         self.db_name = db_name
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        del exc_info
+        self.close()
+
     @property
-    def conn(self, ) -> pymysql.Connection:
+    def conn(self, ) -> Connection:
         """
         获取MySQL的连接对象
         """
-        name = "{0}{1}{2}".format(self.db_host, self.db_port, self.db_name)
 
-        def get_connection():
+        def _get_connection() -> Connection:
             return pymysql.connect(host=self.db_host, port=self.db_port, db=self.db_name, user=self.db_user,
-                                   passwd=self.db_pwd, charset="utf8", cursorclass=pymysql.cursors.DictCursor)
+                                   passwd=self.db_pwd, charset="utf8mb4", cursorclass=pymysql.cursors.DictCursor)
 
-        if not self.conn_pool.get(name):
-            self.conn_pool[name] = get_connection()
-            return self.conn_pool[name]
+        if self._conn is None:
+            self._conn = _get_connection()
         else:
             try:
-                self.conn_pool[name].ping()
+                self._conn.ping()
             except pymysql.Error:
-                self.conn_pool[name] = get_connection()
-            return self.conn_pool[name]
+                self._conn = _get_connection()
 
+        return self._conn
+
+    def close(self, ):
+        """
+        关闭连接
+        Args:
+
+        Returns:
+
+        """
+        self.conn.close()
+
+    # noinspection Mypy
     def execute_many(self, sql: str, args_data: List[Tuple]) -> int:
         """
             批量插入数据
         Args:
             sql: 插入的SQL语句
             args_data: 批量插入的数据，为一个包含元祖的列表
+
+            If args is a list or tuple, %s can be used as a placeholder in the query.
+            If args is a dict, %(name)s can be used as a placeholder in the query.
+
         Returns:
         INSERT INTO traffic_100 (IMEI,lbs_dict_id,app_key) VALUES(%s,%s,%s)
         [('868403022323171', None, 'EB23B21E6E1D930E850E7267E3F00095'),
@@ -73,7 +99,7 @@ class TinyMysql(object):
 
         """
 
-        count = None
+        count: int = 0
         try:
             with self.conn.cursor() as cursor:
                 count = cursor.executemany(sql, args_data)
@@ -87,19 +113,22 @@ class TinyMysql(object):
             self.conn.commit()
         return count
 
-    def execute(self, sql: str, args_data: Tuple) -> int:
+    def execute(self, sql: str, args_data: Tuple = None) -> int:
         """
             执行单条记录，更新、插入或者删除
         Args:
             sql: 插入的SQL语句
-            args_data: 批量插入的数据，为一个包含元祖的列表
+            args_data: tuple, list or dict, 批量插入的数据，为一个包含元祖的列表
+
+            If args is a list or tuple, %s can be used as a placeholder in the query.
+            If args is a dict, %(name)s can be used as a placeholder in the query.
         Returns:
         INSERT INTO traffic_100 (IMEI,lbs_dict_id,app_key) VALUES(%s,%s,%s)
         ('868403022323171', None, 'EB23B21E6E1D930E850E7267E3F00095')
 
         """
 
-        count = None
+        count = 0
         try:
             with self.conn.cursor() as cursor:
                 count = cursor.execute(sql, args_data)
@@ -113,7 +142,8 @@ class TinyMysql(object):
             self.conn.commit()
         return count
 
-    def find_one(self, sql: str, args: Tuple = None) -> Dict:
+    # noinspection Mypy
+    def find_one(self, sql: str, args: Tuple = None) -> Optional[Dict]:
         """
             查询单条记录
         Args:
@@ -131,6 +161,7 @@ class TinyMysql(object):
         else:
             return cursor.fetchone()
 
+    # noinspection Mypy
     def find_data(self, sql: str, args: Tuple = None, size: int = None) -> List[Dict]:
         """
             查询指定行数的数据

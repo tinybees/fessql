@@ -1,11 +1,24 @@
 ## fessql Changelog
 
-###[1.0.1b3] - 2020-3-18
+###[1.0.1b3] - 2020-8-24
+
+#### Added
+- 增加能够选择数据库驱动的功能，默认为pymysql.
+- 增加上下文创建session的功能
+- 增加创建新的session后还原默认的session的功能，方便在同一个请求上下文使用
+- 增加dbalchemy中session的ping功能,探测session是否还连通
+- 新增生成session后探测是否还连通,如果不连通则清理,保证生成的session是可用的
+- tinymysql中增加上下文管理器功能，优化参数，优化获取连接方式.
+- 增加tinymysql中的类型注释
 
 #### Changed 
+- 去掉启动时自动设置SQLALCHEMY_BINDS的功能,如果没有设置则抛出异常.
+- 去掉创建session时自动设置SQLALCHEMY_BINDS的功能,如果没有设置则抛出异常.
 - 更改Pagination获取下一页时计数错误的问题
 - 更改session的commit提交的时机
-
+- 优化ping session是session或者scope session的写法
+- 解决如果session过期ping后session会变为默认的session的问题
+- 修复如果连接断开后使用了ping下次再使用会报错的问题
 
 ###[1.0.1b2] - 2020-3-1
 
@@ -25,17 +38,11 @@
 - session分页查询find_many增加默认按照id升序排序的功能，可关闭
 - 配置增加pool_recycle回旋关闭连接功能
 - 配置增加fessql_binds用于多库的配置,并且增加配置校验功能
-- 增加jrpc客户端单个方法请求的功能,调用形式和普通的函数调用形式一致
-- 增加jrpc客户端批量方法请求的功能,调用形式类似链式调用
-- 增加jrpc服务端jsonrpc子类, http和websocket的URL固定和client中的一致
 - 对aiomysql类进行拆分为reader类和writer类,reader类会自动commit增加读取的效率
 - 对session类也进行拆分为和reader writer对应的session reader和sessionwriter 
 
 #### Changed 
 - 优化所有代码中没有类型标注的地方,都改为typing中的类型标注
-- SanicJsonRPC类中增加init_app方法保证和其他sanic扩展的初始化和调用方式一致
-- jrpc client 和 jrpc server增加jrpc router的修改入口
-- 更改jsonrpc三方包中queue没有使用同一个loop而造成的错误
 - 再次重构session和query类彻底把query和session分开
 - 拆分aclients库和eclients中的和数据库相关的功能形成新的库
 - 使用的时候建议直接使用reader类或者writer类

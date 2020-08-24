@@ -60,4 +60,10 @@ class _Cached(type):
 
 
 class Cached(metaclass=_Cached):
+    """
+    缓存类
+    Args:
+    Returns:
+
+    """
     pass

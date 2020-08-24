@@ -6,27 +6,49 @@
 @software: PyCharm
 @time: 18-12-25 下午4:58
 """
+
 from collections import MutableMapping, MutableSequence
 from contextlib import contextmanager
-from typing import Dict, List, NoReturn, Union
+from typing import Dict, Generator, List, Union
 
 import aelog
 from flask import g, request
 from flask_sqlalchemy import BaseQuery, Pagination, SQLAlchemy
+from sqlalchemy import exc as sqlalchemy_err, text
 from sqlalchemy.engine.result import ResultProxy, RowProxy
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.sql.schema import Table
 
 from ._alchemy import AlchemyMixIn
 from ._cachelru import LRU
 from ._err_msg import mysql_msg
-from .err import DBDuplicateKeyError, DBError, HttpError
+from .err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
 from .utils import _verify_message
 
-__all__ = ("DBAlchemy",)
+__all__ = ("DBAlchemy", "DialectDriver")
 
 _lru_cache = LRU()
+
+
+class DialectDriver(object):
+    """
+    数据库方言驱动
+    """
+    #  postgresql
+    pg_default = "postgresql+psycopg2"  # default
+    pg_pg8000 = "postgresql+pg8000"
+    # mysql
+    mysql_default = "mysql+mysqldb"  # default
+    mysql_pymysql = "mysql+pymysql"
+    # oracle
+    oracle_cx = "oracle+cx_oracle"  # default
+    # SQL Server
+    mssql_default = "mssql+pyodbc"  # default
+    mssql_pymssql = "mssql+pymssql"
+    # SQLite
+    sqlite = "sqlite:///"
 
 
 class DBAlchemy(AlchemyMixIn, SQLAlchemy):
@@ -36,7 +58,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
 
     def __init__(self, app=None, *, username: str = "root", passwd: str = None, host: str = "127.0.0.1",
                  port: int = 3306, dbname: str = None, pool_size: int = 50, is_binds: bool = False,
-                 bind_name: str = "project_id", binds: str = None, **kwargs):
+                 binds: Dict[str, str] = None, dialect: str = DialectDriver.mysql_pymysql, **kwargs):
         """
         DB同步操作指南
         Args:
@@ -48,9 +70,9 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             passwd: mysql password
             pool_size: mysql pool size
             is_binds: Whether to bind same table different database, default false
-            bind_name: Binding key identifier,get from request,default project_id
             binds : Binds corresponds to  SQLALCHEMY_BINDS
             bind_func: Get the implementation logic of the bound value
+            dialect: sqlalchemy默认的Dialect驱动
             kwargs: 其他参数 eg: charset,binary_prefix,pool_recycle
         """
         self.app_ = app
@@ -61,8 +83,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         self.dbname = dbname
         self.pool_size = pool_size
         self.is_binds = is_binds
-        self.bind_name = bind_name
-        self.binds = binds or {}
+        self.binds: Dict = binds or {}
         self.charset = kwargs.get("charset", "utf8mb4")
         self.binary_prefix = kwargs.get("binary_prefix", True)
         self.bind_func = kwargs.get("bind_func", None)
@@ -70,16 +91,17 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         self.use_zh = kwargs.get("use_zh", True)
         self.pool_recycle = kwargs.get("pool_recycle", 3600)
         self.pool_recycle = self.pool_recycle if isinstance(self.pool_recycle, int) else 3600
-        self.msg_zh = None
-        self._sessions = {}  # 主要保存其他session
+        self.dialect: str = dialect
+        self.msg_zh: str = ""
+        self.scoped_sessions: Dict[str, scoped_session] = {}  # 主要保存其他scope session
 
         # 这里要用重写的BaseQuery, 根据BaseQuery的规则,Model中的query_class也需要重新指定为子类model,
         # 但是从Model的初始化看,如果Model的query_class为None的话还是会设置为和Query一致，符合要求
         super().__init__(app, query_class=CustomBaseQuery)
 
     def init_app(self, app, username: str = None, passwd: str = None, host: str = None, port: int = None,
-                 dbname: str = None, pool_size: int = None, is_binds: bool = None, bind_name: str = "",
-                 binds: str = None, **kwargs):
+                 dbname: str = None, pool_size: int = None, is_binds: bool = None,
+                 binds: Dict[str, str] = None, **kwargs):
         """
         mysql 实例初始化
 
@@ -92,7 +114,6 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             passwd: mysql password
             pool_size: mysql pool size
             is_binds: Whether to bind same table different database, default false
-            bind_name: Binding key identifier,get from request
             binds : Binds corresponds to  SQLALCHEMY_BINDS
             kwargs: 其他参数 eg: charset,binary_prefix,pool_recycle
         Returns:
@@ -112,7 +133,6 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         use_zh = kwargs.get("use_zh") or app.config.get("FESSQL_MYSQL_MSGZH") or self.use_zh
 
         self.is_binds = is_binds or app.config.get("FESSQL_IS_BINDS") or self.is_binds
-        self.bind_name = bind_name or app.config.get("FESSQL_BIND_NAME") or self.bind_name
         self.bind_func = kwargs.get("bind_func") or self.bind_func
 
         self.pool_recycle = kwargs.get("pool_recycle") or app.config.get("FESSQL_POOL_RECYCLE") or self.pool_recycle
@@ -123,42 +143,24 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         self.message = _verify_message(mysql_msg, message)
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
 
-        app.config['SQLALCHEMY_DATABASE_URI'] = "mysql+pymysql://{}:{}@{}:{}/{}?charset={}&binary_prefix={}".format(
-            self.username, self.passwd, self.host, self.port, self.dbname, self.charset, self.binary_prefix)
+        app.config['SQLALCHEMY_DATABASE_URI'] = "{}://{}:{}@{}:{}/{}?charset={}&binary_prefix={}".format(
+            self.dialect, self.username, self.passwd, self.host, self.port, self.dbname, self.charset,
+            self.binary_prefix)
         app.config['SQLALCHEMY_BINDS'] = self.binds
         app.config['SQLALCHEMY_POOL_SIZE'] = self.pool_size
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
         app.config['SQLALCHEMY_POOL_RECYCLE'] = self.pool_recycle
 
-        def set_bind_key():
-            """
-            如果绑定多个数据库标记为真，则初始化engine之前需要设置g的绑定数据库键，防止查询的是默认的SQLALCHEMY_DATABASE_URI
-
-            这部分的具体逻辑交给具体的业务，通过实例的bind_func来实现
-            Args:
-
-            Returns:
-
-            """
-            if self.is_binds:
-                if self.bind_func and callable(self.bind_func):
-                    self.bind_func()
-                else:
-                    # 默认实现逻辑
-                    # 从header和args分别获取bind_name的值，优先获取header
-                    bind_value = request.headers.get(self.bind_name) or request.args.get(self.bind_name) or None
-                    if bind_value and bind_value not in app.config['SQLALCHEMY_BINDS']:
-                        app.config['SQLALCHEMY_BINDS'][bind_value] = app.config[
-                            'SQLALCHEMY_DATABASE_URI'].replace(self.dbname, f"{self.dbname}_{bind_value}")
-                    setattr(g, "bind_key", bind_value)
-
-        # Registers a function to be first run before the first request
-        app.before_first_request_funcs.insert(0, set_bind_key)
+        # 如果绑定多个数据库标记为真，则初始化engine之前需要设置g的绑定数据库键，
+        # 防止查询的是默认的SQLALCHEMY_DATABASE_URI
+        # 这部分的具体逻辑交给具体的业务，通过实例的bind_func来实现
+        if self.is_binds and self.bind_func and callable(self.bind_func):
+            app.before_first_request_funcs.insert(0, self.bind_func)
         super().init_app(app)
 
         @app.teardown_appcontext
-        def shutdown_other_session(response_or_exc):
-            for _, session_ in self._sessions.items():
+        def _shutdown_other_session(response_or_exc):
+            for _, session_ in self.scoped_sessions.items():
                 session_.remove()
             return response_or_exc
 
@@ -184,31 +186,94 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             _lru_cache[bind_name] = super().get_binds(app)
         return _lru_cache[bind_name]
 
+    def ping_session(self, session: Union[Session, scoped_session] = None, reconnect=True
+                     ) -> Union[scoped_session, Session]:
+        """
+        session探测,可以探测利用gen_session生成的session也可以探测默认的scope_session
+        Args:
+            session: session
+            reconnect: 是否重连
+        Returns:
+            如果通则返回true,否则false
+        """
+        session = session if session else self.session
+        try:
+            session.execute(text("SELECT 1")).first()
+        except sqlalchemy_err.OperationalError as err:
+            if reconnect:
+                if isinstance(session, Session):
+                    bind_key = getattr(session, "bind_key", "")
+                    if bind_key:
+                        with self.set_bindkey(bind_key):
+                            self.scoped_sessions[bind_key].remove()
+                            session = self.scoped_sessions[bind_key]()
+                            session.bind_key = bind_key  # 设置bind key
+                    else:
+                        raise FuncArgsError(f"session中缺少bind_key变量") from err
+                else:
+                    session.remove()
+            else:
+                raise err
+        # 返回重建后的session
+        return session
+
     def gen_session(self, bind_key: str, session_options: Dict = None) -> Session:
         """
         创建或者获取指定的session,这里是session非sessionmaker
 
         主要用于在一个视图内部针对同表不同库的数据请求获取
         Args:
-            bind_key: session需要绑定的FESSQL_BINDS中的键
+            bind_key: session需要绑定的ECLIENTS_BINDS中的键
             session_options: create_session 所需要的字典或者关键字参数
         Returns:
 
         """
-        if bind_key and bind_key not in self.app_.config['SQLALCHEMY_BINDS']:
-            self.app_.config['SQLALCHEMY_BINDS'][bind_key] = self.app_.config[
-                'SQLALCHEMY_DATABASE_URI'].replace(self.dbname, f"{self.dbname}_{bind_key}")
+        if bind_key not in self.app_.config['SQLALCHEMY_BINDS']:
+            raise ValueError(f"{bind_key} not in SQLALCHEMY_BINDS, please config it.")
 
-        exist_bind_key = getattr(g, "bind_key", None)  # 获取已有的bind_key
-        g.bind_key = bind_key
-        if bind_key not in self._sessions:
-            self._sessions[bind_key] = self.create_scoped_session(session_options)
-        session = self._sessions[bind_key]()
-        g.bind_key = exist_bind_key  # bind_key 还原
+        with self.set_bindkey(bind_key):
+            if bind_key not in self.scoped_sessions:
+                self.scoped_sessions[bind_key] = self.create_scoped_session(session_options)
+            session = self.scoped_sessions[bind_key]()
+            session.bind_key = bind_key  # 设置bind key
+            session = self.ping_session(session)  # 校验重连,保证可用
 
         return session
 
-    def save(self, model_obj, session: Session = None) -> NoReturn:
+    @contextmanager
+    def set_bindkey(self, bind_key):
+        """
+        更新bind key的上下文,用于session的创建和ping功能
+        Args:
+            bind_key
+        Returns:
+
+        """
+        # 为了保证不改变原始的默认session,这里创建新的session后需要还原
+        src_bind_key = getattr(g, "bind_key", None)
+        try:
+            g.bind_key = bind_key  # 设置要切换的bind
+            yield
+        finally:
+            g.bind_key = src_bind_key  # 还原
+
+    @contextmanager
+    def gsession(self, bind_key: str, session_options: Dict = None) -> Generator[Session, None, None]:
+        """
+        增加session的上下文自动关闭
+        Args:
+            bind_key: session需要绑定的ECLIENTS_BINDS中的键
+            session_options: create_session 所需要的字典或者关键字参数
+        Returns:
+
+        """
+        session: Session = self.gen_session(bind_key, session_options)
+        try:
+            yield session
+        finally:
+            session.close()
+
+    def save(self, model_obj, session: Session = None):
         """
         保存model对象
         Args:
@@ -219,7 +284,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         """
         self.session.add(model_obj) if session is None else session.add(model_obj)
 
-    def save_all(self, model_objs: MutableSequence, session: Session = None) -> NoReturn:
+    def save_all(self, model_objs: MutableSequence, session: Session = None):
         """
         保存model对象
         Args:
@@ -232,7 +297,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             raise ValueError(f"model_objs应该是MutableSequence类型的")
         self.session.add_all(model_objs) if session is None else session.add_all(model_objs)
 
-    def delete(self, model_obj, session: Session = None) -> NoReturn:
+    def delete(self, model_obj, session: Session = None):
         """
         删除model对象
         Args:
@@ -244,7 +309,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         self.session.delete(model_obj) if session is None else session.delete(model_obj)
 
     @contextmanager
-    def insert_context(self, session: Session = None) -> 'DBAlchemy':
+    def insert_context(self, session: Session = None) -> Generator['DBAlchemy', None, None]:
         """
         插入数据context
         Args:
@@ -272,7 +337,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             raise HttpError(400, message=self.message[1][self.msg_zh], error=e)
 
     @contextmanager
-    def update_context(self, session: Session = None) -> 'DBAlchemy':
+    def update_context(self, session: Session = None) -> Generator['DBAlchemy', None, None]:
         """
         更新数据context
         Args:
@@ -300,7 +365,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             raise HttpError(400, message=self.message[2][self.msg_zh], error=e)
 
     @contextmanager
-    def delete_context(self, session: Session = None) -> 'DBAlchemy':
+    def delete_context(self, session: Session = None) -> Generator['DBAlchemy', None, None]:
         """
         删除数据context
         Args:
@@ -352,8 +417,8 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         else:
             return cursor
 
-    def execute(self, query: Union[Query, str], params: Union[List[Dict], Dict] = None, session: Session = None,
-                size: int = None, cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
+    def execute(self, query: Union[Query, str], params: Dict = None, session: Session = None, size: int = None,
+                cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
         """
         插入数据，更新或者删除数据
         Args:
@@ -365,7 +430,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         Returns:
             List[RowProxy] or RowProxy or None
         """
-        params = params if isinstance(params, (MutableMapping, MutableSequence)) else {}
+        params = dict(params) if isinstance(params, MutableMapping) else {}
         cursor = self._execute(query, params, session)
         if size is None:
             resp = cursor.fetchall() if cursor.returns_rows else []
@@ -432,6 +497,7 @@ class CustomBaseQuery(BaseQuery):
             # 前提是默认id是主键,因为不排序会有混乱数据,所以从中间件直接解决,业务层不需要关心了
             # 如果业务层有排序了，则此处不再提供排序功能
             # 如果遇到大数据量的分页查询问题时，建议关闭此处，然后再基于已有的索引分页
+            # noinspection Mypy
             if self._order_by is False or self._order_by is None:
                 select_model = getattr(self._primary_entity, "selectable", None)
 

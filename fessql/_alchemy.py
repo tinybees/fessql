@@ -8,7 +8,7 @@
 """
 
 import uuid
-from typing import Dict, List, MutableMapping, MutableSequence, Tuple, Union
+from typing import Dict, MutableMapping, Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
@@ -49,7 +49,7 @@ class AlchemyMixIn(object):
 
     def gen_model(self, model_cls: DeclarativeMeta, class_suffix: str = None, table_suffix: str = None,
                   table_name: str = None, field_mapping: Dict[str, str] = None,
-                  fields: Union[Tuple[str], List[str]] = None):
+                  fields: Sequence[str] = None):
         """
         用于根据现有的model生成新的model类
 
@@ -89,7 +89,7 @@ class AlchemyMixIn(object):
             # column mapping
             model_fields = {}
             field_mapping = {} if not isinstance(field_mapping, MutableMapping) else field_mapping
-            fields = tuple() if not isinstance(fields, MutableSequence) else (*fields, *field_mapping.keys())
+            fields = tuple() if not isinstance(fields, Sequence) else (*fields, *field_mapping.keys())
             for attr_name, field in model_cls.__dict__.items():
                 if isinstance(field, InstrumentedAttribute) and not attr_name.startswith("_"):
                     if fields and attr_name not in fields:

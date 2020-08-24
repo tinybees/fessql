@@ -29,6 +29,8 @@ __all__ = (
     "AIOMySQLReader", "AIOMySQLWriter",
 
     "DBAlchemy",
+
+    "__version__",
 )
 
 __version__ = "1.0.1b3"
