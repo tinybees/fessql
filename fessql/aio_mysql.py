@@ -10,10 +10,10 @@ import asyncio
 import atexit
 from collections import MutableSequence
 from math import ceil
-from typing import (Dict, List, MutableMapping, Optional, Tuple, Union)
+from typing import (Any, Dict, List, MutableMapping, Optional, Tuple, Union)
 
 import aelog
-from aiomysql.sa import create_engine
+from aiomysql.sa import Engine, create_engine
 from aiomysql.sa.exc import Error
 from aiomysql.sa.result import ResultProxy, RowProxy
 from pymysql.err import IntegrityError, MySQLError
@@ -107,15 +107,15 @@ class SessionReader(object):
     query session reader
     """
 
-    def __init__(self, aio_engine, message: Dict, msg_zh: str):
+    def __init__(self, aio_engine: Engine, message: Dict[int, Dict[str, Any]], msg_zh: str):
         """
             query session
         Args:
 
         """
-        self.aio_engine = aio_engine
-        self.message = message
-        self.msg_zh = msg_zh
+        self.aio_engine: Engine = aio_engine
+        self.message: Dict[int, Dict[str, Any]] = message
+        self.msg_zh: str = msg_zh
 
     async def _query_execute(self, query: Union[Select, str], params: Dict = None) -> ResultProxy:
         """
@@ -250,15 +250,15 @@ class SessionWriter(object):
     query session writer
     """
 
-    def __init__(self, aio_engine, message: Dict, msg_zh: str):
+    def __init__(self, aio_engine: Engine, message: Dict[int, Dict[str, Any]], msg_zh: str):
         """
             query session
         Args:
 
         """
-        self.aio_engine = aio_engine
-        self.message = message
-        self.msg_zh = msg_zh
+        self.aio_engine: Engine = aio_engine
+        self.message: Dict[int, Dict[str, Any]] = message
+        self.msg_zh: str = msg_zh
 
     async def _execute(self, query: Union[Insert, Update, str], params: Union[List[Dict], Dict], msg_code: int
                        ) -> ResultProxy:
@@ -343,6 +343,7 @@ class SessionWriter(object):
             raise FuncArgsError("query type error!")
         if not isinstance(query._insert_data, dict):
             raise FuncArgsError("query insert data type error!")
+
         cursor = await self._execute(query._query_obj, query._insert_data, 1)
         return cursor.rowcount, query._insert_data.get("id") or cursor.lastrowid
 
@@ -439,8 +440,8 @@ class _AIOMySQL(AlchemyMixIn, object):
                                                     "fessql_mysql_pool_size":10}}
         """
         self.app = app
-        self.engine_pool: Dict = {}  # engine pool
-        self.session_pool: Dict = {}  # session pool
+        self.engine_pool: Dict[Optional[str], Engine] = {}  # engine pool
+        self.session_pool: Dict[Optional[str], Any] = {}  # session pool
         # default bind connection
         self.username = username
         self.passwd = passwd
