@@ -11,6 +11,7 @@
 - tinymysql中增加上下文管理器功能，优化参数，优化获取连接方式.
 - 增加tinymysql中的类型注释,符合mypy要求
 - 增加aiomysql中的类型注释,符合mypy要求
+- 增加其他关键字参数的传入,不再写固定的参数
 
 #### Changed 
 - 去掉启动时自动设置SQLALCHEMY_BINDS的功能,如果没有设置则抛出异常.

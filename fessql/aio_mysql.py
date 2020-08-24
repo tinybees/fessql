@@ -423,6 +423,8 @@ class _AIOMySQL(AlchemyMixIn, object):
                  port: int = 3306, dbname: str = None, pool_size: int = 10, **kwargs):
         """
         mysql 非阻塞工具类
+
+        完整参数解释请参考aiomysql.Connection的文档
         Args:
             app: app应用
             host:mysql host
@@ -432,12 +434,16 @@ class _AIOMySQL(AlchemyMixIn, object):
             passwd: mysql password
             pool_size: mysql pool size
             pool_recycle: pool recycle time, type int
+            init_command: 初始执行的SQL
+            connect_timeout: 连接超时时间
+            autocommit: 是否自动commit,默认false
             fessql_binds: binds config, eg:{"first":{"fessql_mysql_host":"127.0.0.1",
                                                     "fessql_mysql_port":3306,
                                                     "fessql_mysql_username":"root",
                                                     "fessql_mysql_passwd":"",
                                                     "fessql_mysql_dbname":"dbname",
                                                     "fessql_mysql_pool_size":10}}
+
         """
         self.app = app
         self.engine_pool: Dict[Optional[str], Engine] = {}  # engine pool
@@ -450,12 +456,12 @@ class _AIOMySQL(AlchemyMixIn, object):
         self.dbname = dbname
         self.pool_size = pool_size
         # other info
-        self.pool_recycle = kwargs.get("pool_recycle", 3600)  # free close time
+        self.pool_recycle = kwargs.pop("pool_recycle", 3600)  # free close time
         self.charset = "utf8mb4"
-        self.fessql_binds: Dict = kwargs.get("fessql_binds", {})  # binds config
-        self.message = kwargs.get("message", {})
-        self.use_zh = kwargs.get("use_zh", True)
-        self.max_per_page = kwargs.get("max_per_page", None)
+        self.fessql_binds: Dict = kwargs.pop("fessql_binds", {})  # binds config
+        self.message = kwargs.pop("message", {})
+        self.use_zh = kwargs.pop("use_zh", True)
+        self.max_per_page = kwargs.pop("max_per_page", None)
         self.msg_zh: str = ""
         self.autocommit = False  # 自动提交开关,默认和connection中的默认值一致
 
@@ -489,20 +495,20 @@ class _AIOMySQL(AlchemyMixIn, object):
         dbname = dbname or app.config.get("FESSQL_MYSQL_DBNAME", None) or self.dbname
         self.pool_size = pool_size or app.config.get("FESSQL_MYSQL_POOL_SIZE", None) or self.pool_size
 
-        self.pool_recycle = kwargs.get("pool_recycle") or app.config.get(
+        self.pool_recycle = kwargs.pop("pool_recycle", None) or app.config.get(
             "FESSQL_POOL_RECYCLE", None) or self.pool_recycle
 
-        message = kwargs.get("message") or app.config.get("FESSQL_MYSQL_MESSAGE", None) or self.message
-        use_zh = kwargs.get("use_zh") or app.config.get("FESSQL_MYSQL_MSGZH", None) or self.use_zh
+        message = kwargs.pop("message", None) or app.config.get("FESSQL_MYSQL_MESSAGE", None) or self.message
+        use_zh = kwargs.pop("use_zh", None) or app.config.get("FESSQL_MYSQL_MSGZH", None) or self.use_zh
 
-        self.fessql_binds = kwargs.get("fessql_binds") or app.config.get(
+        self.fessql_binds = kwargs.pop("fessql_binds", None) or app.config.get(
             "FESSQL_BINDS", None) or self.fessql_binds
         self.verify_binds()
 
         passwd = passwd if passwd is None else str(passwd)
         self.message = _verify_message(mysql_msg, message)
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
-        self.max_per_page = kwargs.get("max_per_page", None) or self.max_per_page
+        self.max_per_page = kwargs.pop("max_per_page", None) or self.max_per_page
 
         @app.listener('before_server_start')
         async def open_connection(app_, loop):
@@ -515,8 +521,8 @@ class _AIOMySQL(AlchemyMixIn, object):
             """
             # engine
             self.engine_pool[None] = await create_engine(
-                user=username, db=dbname, host=host, port=port, password=passwd, maxsize=self.pool_size,
-                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit)
+                host=host, port=port, user=username, password=passwd, db=dbname, maxsize=self.pool_size,
+                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit, **kwargs)
 
         @app.listener('after_server_stop')
         async def close_connection(app_, loop):
@@ -555,18 +561,18 @@ class _AIOMySQL(AlchemyMixIn, object):
         dbname = dbname or self.dbname
         self.pool_size = pool_size or self.pool_size
 
-        self.pool_recycle = kwargs.get("pool_recycle") or self.pool_recycle
+        self.pool_recycle = kwargs.pop("pool_recycle", None) or self.pool_recycle
 
-        message = kwargs.get("message") or self.message
-        use_zh = kwargs.get("use_zh") or self.use_zh
+        message = kwargs.pop("message", None) or self.message
+        use_zh = kwargs.pop("use_zh", None) or self.use_zh
 
-        self.fessql_binds = kwargs.get("fessql_binds") or self.fessql_binds
+        self.fessql_binds = kwargs.pop("fessql_binds", None) or self.fessql_binds
         self.verify_binds()
 
         passwd = passwd if passwd is None else str(passwd)
         self.message = _verify_message(mysql_msg, message)
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
-        self.max_per_page = kwargs.get("max_per_page", None) or self.max_per_page
+        self.max_per_page = kwargs.pop("max_per_page", None) or self.max_per_page
         loop = asyncio.get_event_loop()
 
         async def open_connection():
@@ -580,7 +586,7 @@ class _AIOMySQL(AlchemyMixIn, object):
             # engine
             self.engine_pool[None] = await create_engine(
                 host=host, port=port, user=username, password=passwd, db=dbname, maxsize=self.pool_size,
-                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit)
+                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit, **kwargs)
 
         async def close_connection():
             """
@@ -661,7 +667,9 @@ class AIOMySQLReader(_AIOMySQL):
     def __init__(self, app=None, *, username: str = "root", passwd: str = None, host: str = "127.0.0.1",
                  port: int = 3306, dbname: str = None, pool_size: int = 10, **kwargs):
         """
-        mysql 非阻塞工具类
+        mysql 只读非阻塞工具类
+
+        完整参数解释请参考aiomysql.Connection的文档
         Args:
             app: app应用
             host:mysql host
@@ -671,12 +679,16 @@ class AIOMySQLReader(_AIOMySQL):
             passwd: mysql password
             pool_size: mysql pool size
             pool_recycle: pool recycle time, type int
+            init_command: 初始执行的SQL
+            connect_timeout: 连接超时时间
+            autocommit: 是否自动commit,默认false
             fessql_binds: binds config, eg:{"first":{"fessql_mysql_host":"127.0.0.1",
                                                     "fessql_mysql_port":3306,
                                                     "fessql_mysql_username":"root",
                                                     "fessql_mysql_passwd":"",
                                                     "fessql_mysql_dbname":"dbname",
                                                     "fessql_mysql_pool_size":10}}
+
         """
         super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname,
                          pool_size=pool_size, **kwargs)

@@ -9,14 +9,14 @@
 实现简单的信号，用于业务解耦
 """
 import asyncio
-from typing import NoReturn, Tuple
+from typing import Tuple
 
 from fessql.utils import Cached
 
 __all__ = ("SanicSignal", "sanic_add_task")
 
 
-def sanic_add_task(app, func, **kwargs) -> NoReturn:
+def sanic_add_task(app, func, **kwargs):
     """
     添加异步执行任务
     Args:
@@ -53,7 +53,7 @@ class SanicSignal(Cached):
         self.signal_name = signal_name
         self.receiver = []
 
-    def connect(self, receiver) -> NoReturn:
+    def connect(self, receiver):
         """
         连接信号的订阅者
         Args:
@@ -63,7 +63,7 @@ class SanicSignal(Cached):
         """
         self.receiver.append(receiver)
 
-    def disconnect(self, receiver) -> NoReturn:
+    def disconnect(self, receiver):
         """
         取消连接信号的订阅者
         Args:
