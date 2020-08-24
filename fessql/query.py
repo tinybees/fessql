@@ -37,20 +37,20 @@ class BaseQuery(object):
         Args:
 
         """
-        self._model: DeclarativeMeta = None
+        self._model: Optional[DeclarativeMeta] = None
         self._whereclause: List = []
         self._order_by: List = []
         self._group_by: List = []
         self._having: List = []
         self._distinct: List = []
         self._columns: List = []
-        self._union: List = None
-        self._union_all: List = None
-        self._with_hint: List = None
+        self._union: List = []
+        self._union_all: List = []
+        self._with_hint: List = []
         self._bind_values: List = []
         # limit, offset
-        self._limit_clause: int = None
-        self._offset_clause: int = None
+        self._limit_clause: Optional[int] = None
+        self._offset_clause: Optional[int] = None
 
     def where(self, *whereclause) -> 'BaseQuery':
         """return basequery construct with the given expression added to
@@ -107,6 +107,7 @@ class BaseQuery(object):
 
         """
         self._having.extend(having)
+        return self
 
     def distinct(self, *expr) -> 'BaseQuery':
         r"""Return basequery construct which will apply DISTINCT to its
@@ -211,17 +212,17 @@ class Query(BaseQuery):
 
         """
         # data
-        self._insert_data: Union[List[Dict], Dict] = None
-        self._update_data: Union[List[Dict], Dict] = None
+        self._insert_data: Union[List[Dict], Dict] = {}
+        self._update_data: Union[List[Dict], Dict] = {}
         # query
-        self._query_obj: Union[Select, Insert, Update, Delete] = None
-        self._query_count_obj: Select = None  # 查询数量select
+        self._query_obj: Optional[Union[Select, Insert, Update, Delete]] = None
+        self._query_count_obj: Optional[Select] = None  # 查询数量select
         # per page max count
-        self._max_per_page: int = max_per_page
+        self._max_per_page: Optional[int] = max_per_page
         #: the current page number (1 indexed)
-        self._page = None
+        self._page: int = 1
         #: the number of items to be displayed on a page.
-        self._per_page = None
+        self._per_page: int = 20
 
         super().__init__()
 
@@ -309,7 +310,7 @@ class Query(BaseQuery):
         # 处理自动增加的后缀
         if getattr(self._model, "__table_suffix__", None) is not None:
             query_ = query_.replace(getattr(self._model, "__table_suffix__"), "")
-            
+
         return {"sql": query_, "params": params_}
 
     def _verify_model(self, ):
@@ -355,6 +356,7 @@ class Query(BaseQuery):
         """
         self._verify_model()
         try:
+            insert_data_: Union[List[Dict], Dict]
             if isinstance(insert_data, dict):
                 insert_data_ = {**self._get_model_default_value(), **insert_data}
                 query = insert(self._model).values(insert_data_)
@@ -381,7 +383,7 @@ class Query(BaseQuery):
         """
         self._verify_model()
         try:
-
+            update_data_: Union[List[Dict], Dict]
             if isinstance(update_data, MutableMapping):
                 update_data_ = {**self._get_model_onupdate_value(), **update_data}
                 values_data = update_data_ if not self._bind_values else {
@@ -538,7 +540,8 @@ class Query(BaseQuery):
             6. paginate_sql [{"sql": "select sql", "params": "select params"},
                             {"sql": "select count sql", "params": "select count params"}]
         """
-        result_sql = None
+        result_sql: Union[Dict[str, Union[str, Dict, List[Dict], None]],
+                          List[Dict[str, Union[str, Dict, List[Dict], None]]]] = {}
 
         if self._query_obj is not None and self._query_count_obj is not None:
             select_sql = self._compiled_quey(self._query_obj)

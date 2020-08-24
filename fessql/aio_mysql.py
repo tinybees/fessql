@@ -10,7 +10,7 @@ import asyncio
 import atexit
 from collections import MutableSequence
 from math import ceil
-from typing import (Dict, List, MutableMapping, NoReturn, Optional, Tuple, Union)
+from typing import (Dict, List, MutableMapping, Optional, Tuple, Union)
 
 import aelog
 from aiomysql.sa import create_engine
@@ -38,7 +38,7 @@ class Pagination(object):
     no longer work.
     """
 
-    def __init__(self, db_client: 'SessionReader', query: Query, total: int, items: List[Dict]):
+    def __init__(self, db_client: 'SessionReader', query: Query, total: int, items: List[RowProxy]):
         #: the unlimited query object that was used to create this
         #: aiomysqlclient object.
         self.session: SessionReader = db_client
@@ -51,7 +51,7 @@ class Pagination(object):
         #: the total number of items matching the query
         self.total: int = total
         #: the items for the current page
-        self.items: List[Dict] = items
+        self.items: List[RowProxy] = items
 
     @property
     def pages(self) -> int:
@@ -64,13 +64,13 @@ class Pagination(object):
 
     async def prev(self, ) -> List[RowProxy]:
         """Returns a :class:`Pagination` object for the previous page."""
-        self.page = self.page - 1
+        self.page -= 1
         self._query._offset_clause = (self.page - 1) * self.per_page
         self._query.select_query()  # 重新生成分页SQL
         return await self.session._find_data(self._query)
 
     @property
-    def prev_num(self) -> int:
+    def prev_num(self) -> Optional[int]:
         """Number of the previous page."""
         if not self.has_prev:
             return None
@@ -83,7 +83,7 @@ class Pagination(object):
 
     async def next(self, ) -> List[RowProxy]:
         """Returns a :class:`Pagination` object for the next page."""
-        self.page = self.page + 1
+        self.page += 1
         self._query._offset_clause = (self.page - 1) * self.per_page
         self._query.select_query()  # 重新生成分页SQL
         return await self.session._find_data(self._query)
@@ -94,7 +94,7 @@ class Pagination(object):
         return self.page < self.pages
 
     @property
-    def next_num(self) -> int:
+    def next_num(self) -> Optional[int]:
         """Number of the next page"""
         if not self.has_next:
             return None
@@ -341,7 +341,8 @@ class SessionWriter(object):
         """
         if not isinstance(query, Query):
             raise FuncArgsError("query type error!")
-
+        if not isinstance(query._insert_data, dict):
+            raise FuncArgsError("query insert data type error!")
         cursor = await self._execute(query._query_obj, query._insert_data, 1)
         return cursor.rowcount, query._insert_data.get("id") or cursor.lastrowid
 
@@ -357,6 +358,8 @@ class SessionWriter(object):
         """
         if not isinstance(query, Query):
             raise FuncArgsError("query type error!")
+        if not isinstance(query._insert_data, list):
+            raise FuncArgsError("query insert data type error!")
 
         cursor = await self._execute(query._query_obj, query._insert_data, 1)
         return cursor.rowcount
@@ -436,8 +439,8 @@ class _AIOMySQL(AlchemyMixIn, object):
                                                     "fessql_mysql_pool_size":10}}
         """
         self.app = app
-        self.engine_pool = {}  # engine pool
-        self.session_pool = {}  # session pool
+        self.engine_pool: Dict = {}  # engine pool
+        self.session_pool: Dict = {}  # session pool
         # default bind connection
         self.username = username
         self.passwd = passwd
@@ -452,7 +455,7 @@ class _AIOMySQL(AlchemyMixIn, object):
         self.message = kwargs.get("message", {})
         self.use_zh = kwargs.get("use_zh", True)
         self.max_per_page = kwargs.get("max_per_page", None)
-        self.msg_zh = None
+        self.msg_zh: str = ""
         self.autocommit = False  # 自动提交开关,默认和connection中的默认值一致
 
         if app is not None:
@@ -629,7 +632,7 @@ class _AIOMySQL(AlchemyMixIn, object):
         """
         return Query(self.max_per_page)
 
-    async def _create_engine(self, bind: str) -> NoReturn:
+    async def _create_engine(self, bind: str):
         """
         session bind
         Args:

@@ -9,7 +9,8 @@
 - 增加dbalchemy中session的ping功能,探测session是否还连通
 - 新增生成session后探测是否还连通,如果不连通则清理,保证生成的session是可用的
 - tinymysql中增加上下文管理器功能，优化参数，优化获取连接方式.
-- 增加tinymysql中的类型注释
+- 增加tinymysql中的类型注释,符合mypy要求
+- 增加aiomysql中的类型注释,符合mypy要求
 
 #### Changed 
 - 去掉启动时自动设置SQLALCHEMY_BINDS的功能,如果没有设置则抛出异常.
