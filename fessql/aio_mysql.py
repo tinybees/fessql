@@ -428,7 +428,7 @@ class Session(SessionReader, SessionWriter):
     pass
 
 
-class _AIOMySQL(AlchemyMixIn, object):
+class AIOMySQL(AlchemyMixIn, object):
     """
     MySQL异步操作指南
     """
@@ -674,12 +674,6 @@ class _AIOMySQL(AlchemyMixIn, object):
                 db=bind_conf.get("fessql_mysql_dbname"),
                 maxsize=bind_conf.get("fessql_mysql_pool_size") or self.pool_size,
                 pool_recycle=self.pool_recycle, charset=self.charset, **self._conn_kwargs)
-
-
-class AIOMySQL(_AIOMySQL):
-    """
-    MySQL更新异步操作指南
-    """
 
     @property
     def session(self, ) -> Session:

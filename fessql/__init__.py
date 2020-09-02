@@ -26,9 +26,9 @@ __all__ = (
 
     "LRI", "LRU",
 
-    "AIOMySQLReader", "AIOMySQLWriter",
+    "AIOMySQL",
 
-    "DBAlchemy",
+    "DBAlchemy", "DialectDriver",
 
     "__version__",
 )

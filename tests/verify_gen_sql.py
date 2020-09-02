@@ -10,13 +10,14 @@ import unittest
 from datetime import datetime
 
 import sqlalchemy as sa
-from aclients.utils import objectid
+from fesutils import objectid
 
 from fessql import AIOMySQL
 
 mysql_db = AIOMySQL()
 
 
+# noinspection Mypy
 class MessageDisplayModel(mysql_db.Model):
     """
     消息展示
