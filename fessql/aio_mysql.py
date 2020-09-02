@@ -13,7 +13,7 @@ from math import ceil
 from typing import (Any, Dict, List, MutableMapping, Optional, Tuple, Union)
 
 import aelog
-from aiomysql.sa import Engine, create_engine
+from aiomysql.sa import Engine, SAConnection, create_engine
 from aiomysql.sa.exc import Error
 from aiomysql.sa.result import ResultProxy, RowProxy
 from pymysql.err import IntegrityError, MySQLError
@@ -26,7 +26,7 @@ from .err import ConfigError, DBDuplicateKeyError, DBError, FuncArgsError, HttpE
 from .query import Query
 from .utils import _verify_message
 
-__all__ = ("AIOMySQLReader", "AIOMySQLWriter")
+__all__ = ("AIOMySQL",)
 
 
 # noinspection PyProtectedMember
@@ -101,15 +101,14 @@ class Pagination(object):
         return self.page + 1
 
 
-# noinspection PyProtectedMember
-class SessionReader(object):
+class BaseSession(object):
     """
-    query session reader
+    query session reader and writer
     """
 
     def __init__(self, aio_engine: Engine, message: Dict[int, Dict[str, Any]], msg_zh: str):
         """
-            query session
+            query session reader and writer
         Args:
 
         """
@@ -117,16 +116,32 @@ class SessionReader(object):
         self.message: Dict[int, Dict[str, Any]] = message
         self.msg_zh: str = msg_zh
 
+
+# noinspection PyProtectedMember
+class SessionReader(BaseSession):
+    """
+    query session reader
+    """
+
     async def _query_execute(self, query: Union[Select, str], params: Dict = None) -> ResultProxy:
         """
         查询数据
+
+        # 读取的时候自动提交为true, 这样查询的时候就不用commit了
+        # 因为如果是读写分离的操作,则发现写入commit后,再次读取的时候读取不到最新的数据,除非读取的时候手动增加commit的操作
+        # 而这一步操作会感觉是非常不必要的,除非在同一个connection中才不用增加,而对于读写分离的操作是不现实的
+        # 而读取的操作占多数设置自动commit后可以提高查询的效率,所以这里把此分开
+        self.autocommit = True
+
         Args:
             query: SQL的查询字符串或者sqlalchemy表达式
             params: 执行的参数值,
         Returns:
             不确定执行的是什么查询，直接返回ResultProxy实例
         """
-        async with self.aio_engine.acquire() as conn:
+        conn: SAConnection = self.aio_engine.acquire()
+        async with conn as conn:
+            await conn.connection.autocommit(True)
             try:
                 cursor = await conn.execute(query, params or {})
             except (MySQLError, Error) as e:
@@ -245,20 +260,10 @@ class SessionReader(object):
 
 
 # noinspection PyProtectedMember
-class SessionWriter(object):
+class SessionWriter(BaseSession):
     """
     query session writer
     """
-
-    def __init__(self, aio_engine: Engine, message: Dict[int, Dict[str, Any]], msg_zh: str):
-        """
-            query session
-        Args:
-
-        """
-        self.aio_engine: Engine = aio_engine
-        self.message: Dict[int, Dict[str, Any]] = message
-        self.msg_zh: str = msg_zh
 
     async def _execute(self, query: Union[Insert, Update, str], params: Union[List[Dict], Dict], msg_code: int
                        ) -> ResultProxy:
@@ -271,7 +276,9 @@ class SessionWriter(object):
         Returns:
             不确定执行的是什么查询，直接返回ResultProxy实例
         """
-        async with self.aio_engine.acquire() as conn:
+        conn: SAConnection = self.aio_engine.acquire()
+        async with conn as conn:
+            await conn.connection.autocommit(False)
             async with conn.begin() as trans:
                 try:
                     cursor = await conn.execute(query, params)
@@ -290,8 +297,7 @@ class SessionWriter(object):
                     await trans.rollback()
                     aelog.exception(e)
                     raise HttpError(400, message=self.message[msg_code][self.msg_zh])
-                else:
-                    await trans.commit()
+
         return cursor
 
     async def _delete_execute(self, query: Union[Delete, str]) -> int:
@@ -302,7 +308,9 @@ class SessionWriter(object):
         Returns:
             返回删除的条数
         """
-        async with self.aio_engine.acquire() as conn:
+        conn: SAConnection = self.aio_engine.acquire()
+        async with conn as conn:
+            await conn.connection.autocommit(False)
             async with conn.begin() as trans:
                 try:
                     cursor = await conn.execute(query)
@@ -314,8 +322,7 @@ class SessionWriter(object):
                     await trans.rollback()
                     aelog.exception(e)
                     raise HttpError(400, message=self.message[3][self.msg_zh])
-                else:
-                    await trans.commit()
+
         return cursor.rowcount
 
     async def execute(self, query: Union[TextClause, str], params: Union[List[Dict], Dict]) -> int:
@@ -414,6 +421,13 @@ class SessionWriter(object):
         return await self._delete_execute(query._query_obj)
 
 
+class Session(SessionReader, SessionWriter):
+    """
+    query session reader and writer
+    """
+    pass
+
+
 class _AIOMySQL(AlchemyMixIn, object):
     """
     MySQL异步操作指南
@@ -463,11 +477,12 @@ class _AIOMySQL(AlchemyMixIn, object):
         self.use_zh = kwargs.pop("use_zh", True)
         self.max_per_page = kwargs.pop("max_per_page", None)
         self.msg_zh: str = ""
-        self.autocommit = False  # 自动提交开关,默认和connection中的默认值一致
+        # self.autocommit = False  # 自动提交开关,默认和connection中的默认值一致
+        self._conn_kwargs: Dict[str, Any] = kwargs  # 其他连接关键字参数
 
         if app is not None:
             self.init_app(app, username=self.username, passwd=self.passwd, host=self.host, port=self.port,
-                          dbname=self.dbname, pool_size=self.pool_size, **kwargs)
+                          dbname=self.dbname, pool_size=self.pool_size, **self._conn_kwargs)
 
     def init_app(self, app, *, username: str = None, passwd: str = None, host: str = None, port: int = None,
                  dbname: str = None, pool_size: int = None, **kwargs):
@@ -509,6 +524,7 @@ class _AIOMySQL(AlchemyMixIn, object):
         self.message = _verify_message(mysql_msg, message)
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
         self.max_per_page = kwargs.pop("max_per_page", None) or self.max_per_page
+        self._conn_kwargs = kwargs
 
         @app.listener('before_server_start')
         async def open_connection(app_, loop):
@@ -522,7 +538,7 @@ class _AIOMySQL(AlchemyMixIn, object):
             # engine
             self.engine_pool[None] = await create_engine(
                 host=host, port=port, user=username, password=passwd, db=dbname, maxsize=self.pool_size,
-                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit, **kwargs)
+                pool_recycle=self.pool_recycle, charset=self.charset, **self._conn_kwargs)
 
         @app.listener('after_server_stop')
         async def close_connection(app_, loop):
@@ -574,6 +590,7 @@ class _AIOMySQL(AlchemyMixIn, object):
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
         self.max_per_page = kwargs.pop("max_per_page", None) or self.max_per_page
         loop = asyncio.get_event_loop()
+        self._conn_kwargs = kwargs
 
         async def open_connection():
             """
@@ -586,7 +603,7 @@ class _AIOMySQL(AlchemyMixIn, object):
             # engine
             self.engine_pool[None] = await create_engine(
                 host=host, port=port, user=username, password=passwd, db=dbname, maxsize=self.pool_size,
-                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit, **kwargs)
+                pool_recycle=self.pool_recycle, charset=self.charset, **self._conn_kwargs)
 
         async def close_connection():
             """
@@ -656,85 +673,16 @@ class _AIOMySQL(AlchemyMixIn, object):
                 user=bind_conf.get("fessql_mysql_username"), password=bind_conf.get("fessql_mysql_passwd"),
                 db=bind_conf.get("fessql_mysql_dbname"),
                 maxsize=bind_conf.get("fessql_mysql_pool_size") or self.pool_size,
-                pool_recycle=self.pool_recycle, charset=self.charset, autocommit=self.autocommit)
+                pool_recycle=self.pool_recycle, charset=self.charset, **self._conn_kwargs)
 
 
-class AIOMySQLReader(_AIOMySQL):
-    """
-    MySQL读取异步操作指南
-    """
-
-    def __init__(self, app=None, *, username: str = "root", passwd: str = None, host: str = "127.0.0.1",
-                 port: int = 3306, dbname: str = None, pool_size: int = 10, **kwargs):
-        """
-        mysql 只读非阻塞工具类
-
-        完整参数解释请参考aiomysql.Connection的文档
-        Args:
-            app: app应用
-            host:mysql host
-            port:mysql port
-            dbname: database name
-            username: mysql user
-            passwd: mysql password
-            pool_size: mysql pool size
-            pool_recycle: pool recycle time, type int
-            init_command: 初始执行的SQL
-            connect_timeout: 连接超时时间
-            autocommit: 是否自动commit,默认false
-            fessql_binds: binds config, eg:{"first":{"fessql_mysql_host":"127.0.0.1",
-                                                    "fessql_mysql_port":3306,
-                                                    "fessql_mysql_username":"root",
-                                                    "fessql_mysql_passwd":"",
-                                                    "fessql_mysql_dbname":"dbname",
-                                                    "fessql_mysql_pool_size":10}}
-
-        """
-        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname,
-                         pool_size=pool_size, **kwargs)
-
-        # 读取的时候自动提交为true, 这样查询的时候就不用commit了
-        # 因为如果是读写分离的操作,则发现写入commit后,再次读取的时候读取不到最新的数据,除非读取的时候手动增加commit的操作
-        # 而这一步操作会感觉是非常不必要的,除非在同一个connection中才不用增加,而对于读写分离的操作是不现实的
-        # 而读取的操作占多数设置自动commit后可以提高查询的效率,所以这里把此分开
-        self.autocommit = True
-
-    @property
-    def session(self, ) -> SessionReader:
-        """
-        session default bind
-        Args:
-
-        Returns:
-
-        """
-        if None not in self.engine_pool:
-            raise ValueError("Default bind is not exist.")
-        if None not in self.session_pool:
-            self.session_pool[None] = SessionReader(self.engine_pool[None], self.message, self.msg_zh)
-        return self.session_pool[None]
-
-    async def gen_session(self, bind: str) -> SessionReader:
-        """
-        session bind
-        Args:
-            bind: engine pool one of connection
-        Returns:
-
-        """
-        await self._create_engine(bind)
-        if bind not in self.session_pool:
-            self.session_pool[bind] = SessionReader(self.engine_pool[bind], self.message, self.msg_zh)
-        return self.session_pool[bind]
-
-
-class AIOMySQLWriter(_AIOMySQL):
+class AIOMySQL(_AIOMySQL):
     """
     MySQL更新异步操作指南
     """
 
     @property
-    def session(self, ) -> SessionWriter:
+    def session(self, ) -> Session:
         """
         session default bind
         Args:
@@ -745,10 +693,10 @@ class AIOMySQLWriter(_AIOMySQL):
         if None not in self.engine_pool:
             raise ValueError("Default bind is not exist.")
         if None not in self.session_pool:
-            self.session_pool[None] = SessionWriter(self.engine_pool[None], self.message, self.msg_zh)
+            self.session_pool[None] = Session(self.engine_pool[None], self.message, self.msg_zh)
         return self.session_pool[None]
 
-    async def gen_session(self, bind: str) -> SessionWriter:
+    async def gen_session(self, bind: str) -> Session:
         """
         session bind
         Args:
@@ -758,5 +706,5 @@ class AIOMySQLWriter(_AIOMySQL):
         """
         await self._create_engine(bind)
         if bind not in self.session_pool:
-            self.session_pool[bind] = SessionWriter(self.engine_pool[bind], self.message, self.msg_zh)
+            self.session_pool[bind] = Session(self.engine_pool[bind], self.message, self.msg_zh)
         return self.session_pool[bind]

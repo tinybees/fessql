@@ -1,6 +1,6 @@
 ## fessql Changelog
 
-###[1.0.1b3] - 2020-8-24
+###[1.0.1b3] - 2020-9-2
 
 #### Added
 - 增加能够选择数据库驱动的功能，默认为pymysql.
@@ -12,6 +12,8 @@
 - 增加tinymysql中的类型注释,符合mypy要求
 - 增加aiomysql中的类型注释,符合mypy要求
 - 增加其他关键字参数的传入,不再写固定的参数
+- 优化aiomysql的实现方式使用层面不再区分reader和writer,而改为单一的session
+- 在aiomysql的session中还是会区分reader和writer,对于读写采用即时更改是否自动提交的方式解决读数据还需要commit才是最新数据的问题
 
 #### Changed 
 - 去掉启动时自动设置SQLALCHEMY_BINDS的功能,如果没有设置则抛出异常.
@@ -21,6 +23,7 @@
 - 优化ping session是session或者scope session的写法
 - 解决如果session过期ping后session会变为默认的session的问题
 - 修复如果连接断开后使用了ping下次再使用会报错的问题
+- 更改aiomysql中commit的方式去掉显式提交的方式改为上下文自动提交的方式
 
 ###[1.0.1b2] - 2020-3-1
 
