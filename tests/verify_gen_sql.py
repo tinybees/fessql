@@ -12,13 +12,12 @@ from datetime import datetime
 import sqlalchemy as sa
 from fesutils import objectid
 
-from fessql import AIOMySQL
+from fessql.aioalchemy import AIOMySQL
 
 mysql_db = AIOMySQL()
 
 
-# noinspection Mypy
-class MessageDisplayModel(mysql_db.Model):
+class MessageDisplayModel(mysql_db.Model):  # type:ignore
     """
     消息展示
     """
@@ -105,4 +104,4 @@ class TestSQL(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.TextTestRunner(verbosity=2).run(TestSQL)
+    unittest.TextTestRunner(verbosity=2).run(TestSQL())

@@ -497,8 +497,7 @@ class CustomBaseQuery(BaseQuery):
             # 前提是默认id是主键,因为不排序会有混乱数据,所以从中间件直接解决,业务层不需要关心了
             # 如果业务层有排序了，则此处不再提供排序功能
             # 如果遇到大数据量的分页查询问题时，建议关闭此处，然后再基于已有的索引分页
-            # noinspection Mypy
-            if self._order_by is False or self._order_by is None:
+            if self._order_by is False or self._order_by is None:  # type: ignore
                 select_model = getattr(self._primary_entity, "selectable", None)
 
                 if isinstance(select_model, Table) and getattr(select_model.columns, "id", None) is not None:

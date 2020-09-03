@@ -81,7 +81,6 @@ class TinyMysql(object):
         """
         self.conn.close()
 
-    # noinspection Mypy
     def execute_many(self, sql: str, args_data: List[Tuple]) -> int:
         """
             批量插入数据
@@ -102,7 +101,7 @@ class TinyMysql(object):
         count: int = 0
         try:
             with self.conn.cursor() as cursor:
-                count = cursor.executemany(sql, args_data)
+                count = cursor.executemany(sql, args_data)  # type: ignore
         except pymysql.Error as e:
             self.conn.rollback()
             aelog.exception(e)
@@ -142,7 +141,6 @@ class TinyMysql(object):
             self.conn.commit()
         return count
 
-    # noinspection Mypy
     def find_one(self, sql: str, args: Tuple = None) -> Optional[Dict]:
         """
             查询单条记录
@@ -158,10 +156,10 @@ class TinyMysql(object):
                 cursor.execute(sql, args)
         except pymysql.Error as e:
             aelog.exception(e)
+            return None
         else:
-            return cursor.fetchone()
+            return cursor.fetchone()  # type: ignore
 
-    # noinspection Mypy
     def find_data(self, sql: str, args: Tuple = None, size: int = None) -> List[Dict]:
         """
             查询指定行数的数据
@@ -178,5 +176,6 @@ class TinyMysql(object):
                 cursor.execute(sql, args)
         except pymysql.Error as e:
             aelog.exception(e)
+            return []
         else:
-            return cursor.fetchall() if not size else cursor.fetchmany(size)
+            return cursor.fetchall() if not size else cursor.fetchmany(size)  # type: ignore

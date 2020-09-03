@@ -8,7 +8,7 @@
 """
 
 import uuid
-from typing import Dict, MutableMapping, Sequence
+from typing import ClassVar, Dict, MutableMapping, Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
@@ -25,7 +25,7 @@ class AlchemyMixIn(object):
     base alchemy
     """
 
-    Model = declarative_base()
+    Model: ClassVar[DeclarativeMeta] = declarative_base()
 
     # noinspection PyUnresolvedReferences
     def _verify_sanic_app(self, ):
