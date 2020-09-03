@@ -21,7 +21,7 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql import (Delete, Insert, Select, Update, delete, func, insert, select, update)
 from sqlalchemy.sql.dml import UpdateBase
 
-from .err import FuncArgsError, QueryArgsError
+from ..err import FuncArgsError, QueryArgsError
 
 __all__ = ("Query",)
 
