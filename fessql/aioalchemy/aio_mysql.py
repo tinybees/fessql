@@ -26,7 +26,7 @@ from .._err_msg import mysql_msg
 from ..err import ConfigError, DBDuplicateKeyError, DBError, FuncArgsError, HttpError
 from ..utils import _verify_message
 
-__all__ = ("AIOMySQL",)
+__all__ = ("AIOMySQL", "Pagination", "Session")
 
 
 # noinspection PyProtectedMember

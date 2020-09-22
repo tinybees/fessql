@@ -13,7 +13,7 @@ from .blinker import *
 __all__ = (
     "Query",
 
-    "AIOMySQL",
+    "AIOMySQL", "Pagination", "Session",
 
     "SanicSignal", "sanic_add_task",
 
