@@ -487,6 +487,16 @@ class Query(BaseQuery):
         Returns:
 
         """
+        try:
+            page = int(page)
+        except (TypeError, ValueError):
+            page = 1
+
+        try:
+            per_page = int(per_page)
+        except (TypeError, ValueError):
+            per_page = 20
+
         if self._max_per_page is not None:
             per_page = min(per_page, self._max_per_page)
 

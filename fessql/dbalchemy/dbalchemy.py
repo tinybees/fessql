@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from typing import Dict, Generator, List, Union
 
 import aelog
-from flask import g, request
+from flask import g
 from flask_sqlalchemy import BaseQuery, Pagination, SQLAlchemy
 from sqlalchemy import exc as sqlalchemy_err, text
 from sqlalchemy.engine.result import ResultProxy, RowProxy
@@ -471,16 +471,15 @@ class CustomBaseQuery(BaseQuery):
         Returns a :class:`Pagination` object.
         """
 
-        if request:
-            try:
-                page = int(request.args.get('page', 1))
-            except (TypeError, ValueError):
-                page = 1
+        try:
+            page = int(page)
+        except (TypeError, ValueError):
+            page = 1
 
-            try:
-                per_page = int(request.args.get('per_page', 20))
-            except (TypeError, ValueError):
-                per_page = 20
+        try:
+            per_page = int(per_page)
+        except (TypeError, ValueError):
+            per_page = 20
 
         if max_per_page is not None:
             per_page = min(per_page, max_per_page)
