@@ -185,7 +185,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
                  host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
                  dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
                  query_class: Type[orm.Query] = FastapiQuery, session_options: Dict[str, Any] = None,
-                 engine_options: Dict[str, Any], **kwargs):
+                 engine_options: Dict[str, Any] = None, **kwargs):
         """
         DB同步操作指南，适用于fastapi
         Args:
