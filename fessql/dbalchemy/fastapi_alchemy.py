@@ -26,11 +26,9 @@ from sqlalchemy.sql.schema import Table
 from .drivers import DialectDriver
 from .._alchemy import AlchemyMixIn
 from .._err_msg import mysql_msg
-from ..err import DBDuplicateKeyError, DBError, HttpError
+from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
 
 __all__ = ("FastapiPagination", "FastapiQuery", "FastapiAlchemy")
-
-from ..err import FuncArgsError
 
 
 class FastapiPagination(object):
@@ -299,7 +297,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         _setdefault('connect_args', 'FESSQL_CONNECT_ARGS')
 
     def get_engine_url(self, db_name, *, username: str = None, password: str = None, host="127.0.0.1",
-                       port: int = 3306):
+                       port: int = 3306) -> URL:
         """
         获取引擎需要的URL
         Args:
@@ -345,6 +343,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
 
         # engine
         self.engine_pool[None] = self.create_engine(self.db_uri, self.engine_options)
+        self.sessionmaker_pool[None] = self.create_scoped_sessionmaker(self.engine_pool[None])
         # 注册停止事件
         app.on_event('shutdown')(self.close_connection)
 
@@ -377,6 +376,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
 
         # engine
         self.engine_pool[None] = self.create_engine(self.db_uri, self.engine_options)
+        self.sessionmaker_pool[None] = self.create_scoped_sessionmaker(self.engine_pool[None])
         # 注册停止事件
         atexit.register(self.close_connection)
 
@@ -444,7 +444,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         return orm.sessionmaker(bind=bind, **self.session_options)
 
     @staticmethod
-    def create_engine(sa_url: str, engine_opts: Dict[str, Any]) -> Engine:
+    def create_engine(sa_url: Union[str, URL], engine_opts: Dict[str, Any]) -> Engine:
         """
             Override this method to have final say over how the SQLAlchemy engine
             is created.
@@ -466,7 +466,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             raise ValueError("bind is not exist, please config it in the FESSQL_BINDS.")
         if bind_key not in self.engine_pool:
             bind_conf: Dict = self.fessql_binds[bind_key]
-            db_uri: str = self.get_engine_url(bind_conf["fessql_mysql_dbname"],
+            db_uri: URL = self.get_engine_url(bind_conf["fessql_mysql_dbname"],
                                               username=bind_conf["fessql_mysql_username"],
                                               password=bind_conf["fessql_mysql_passwd"],
                                               host=bind_conf["fessql_mysql_host"],
