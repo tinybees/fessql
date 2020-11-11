@@ -388,8 +388,8 @@ class FastapiAlchemy(AlchemyMixIn, object):
         Returns:
 
         """
-        for _, engine_ in self.sessionmaker_pool.items():
-            engine_.remove()
+        for _, sessionmaker_ in self.sessionmaker_pool.items():
+            sessionmaker_.remove()
         for _, engine_ in self.engine_pool.items():
             engine_.dispose()
 
