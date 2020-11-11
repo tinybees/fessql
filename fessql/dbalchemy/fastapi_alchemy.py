@@ -23,7 +23,7 @@ from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.orm import Query, Session
 from sqlalchemy.sql.schema import Table
 
-from . import DialectDriver
+from .drivers import DialectDriver
 from .._alchemy import AlchemyMixIn
 from .._err_msg import mysql_msg
 from ..err import DBDuplicateKeyError, DBError, HttpError
@@ -235,6 +235,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         self.dbname: Optional[str] = dbname
         self.db_uri: str = ""
         # session and engine
+        self.kwargs: Dict[str, Any] = kwargs
         self.session_options: Dict[str, Any] = session_options or {}
         self._set_session_opts()  # 更新默认参数
         self.engine_options: Dict[str, Any] = engine_options or {}
@@ -242,7 +243,6 @@ class FastapiAlchemy(AlchemyMixIn, object):
         # other binds
         self.fessql_binds: Dict[str, Dict] = fessql_binds or {}  # binds config
         self.Query = query_class
-        self.kwargs: Dict[str, Any] = kwargs
 
         if app is not None:
             self.init_app(app)
@@ -311,11 +311,11 @@ class FastapiAlchemy(AlchemyMixIn, object):
         Returns:
 
         """
-        return str(URL(drivername=self.dialect,
-                       username=username, password=password,
-                       host=host, port=port,
-                       database=db_name,
-                       query={"charset": self.charset, "binary_prefix": self.binary_prefix}))
+        return URL(drivername=self.dialect,
+                   username=username, password=password,
+                   host=host, port=port,
+                   database=db_name,
+                   query={"charset": self.charset, "binary_prefix": "true" if self.binary_prefix else "false"})
 
     # noinspection DuplicatedCode
     def init_app(self, app):

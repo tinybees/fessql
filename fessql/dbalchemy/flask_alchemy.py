@@ -12,8 +12,6 @@ from contextlib import contextmanager
 from typing import Dict, Generator, List, Union
 
 import aelog
-from flask import g
-from flask_sqlalchemy import BaseQuery, Pagination, SQLAlchemy
 from sqlalchemy import exc as sqlalchemy_err, text
 from sqlalchemy.engine.result import ResultProxy, RowProxy
 from sqlalchemy.exc import DatabaseError, IntegrityError
@@ -21,7 +19,23 @@ from sqlalchemy.orm import Query, Session
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.sql.schema import Table
 
-from . import DialectDriver
+try:
+    from flask import g
+    from flask_sqlalchemy import BaseQuery, Pagination, SQLAlchemy
+except ImportError as e:
+    # noinspection Mypy
+    class SQLAlchemy(object):
+        """
+        抛出未import异常
+        """
+
+        def __init__(self) -> None:
+            raise ImportError(f"flask_sqlalchemy import error {e}.")
+
+
+    BaseQuery = Pagination = SQLAlchemy
+
+from .drivers import DialectDriver
 from .._alchemy import AlchemyMixIn
 from .._cachelru import LRU
 from .._err_msg import mysql_msg
