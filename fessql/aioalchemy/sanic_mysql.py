@@ -23,10 +23,10 @@ from sqlalchemy.sql.elements import TextClause
 from .query import Query
 from .._alchemy import AlchemyMixIn
 from .._err_msg import mysql_msg
-from ..err import ConfigError, DBDuplicateKeyError, DBError, FuncArgsError, HttpError
+from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
 from ..utils import _verify_message
 
-__all__ = ("AIOMySQL", "Pagination", "Session")
+__all__ = ("SanicMySQL", "Pagination", "Session")
 
 
 # noinspection PyProtectedMember
@@ -428,7 +428,7 @@ class Session(SessionReader, SessionWriter):
     pass
 
 
-class AIOMySQL(AlchemyMixIn, object):
+class SanicMySQL(AlchemyMixIn, object):
     """
     MySQL异步操作指南
     """
@@ -441,11 +441,11 @@ class AIOMySQL(AlchemyMixIn, object):
         完整参数解释请参考aiomysql.Connection的文档
         Args:
             app: app应用
+            username: mysql user
+            passwd: mysql password
             host:mysql host
             port:mysql port
             dbname: database name
-            username: mysql user
-            passwd: mysql password
             pool_size: mysql pool size
             pool_recycle: pool recycle time, type int
             init_command: 初始执行的SQL
@@ -622,28 +622,24 @@ class AIOMySQL(AlchemyMixIn, object):
         loop.run_until_complete(open_connection())
         atexit.register(lambda: loop.run_until_complete(close_connection()))
 
-    def verify_binds(self, ):
+    def _verify_sanic_app(self, ):
         """
-        校验fessql_binds
+        校验APP类型是否正确
+
+        暂时只支持sanic框架
         Args:
 
         Returns:
 
         """
-        if self.fessql_binds:
-            if not isinstance(self.fessql_binds, dict):
-                raise TypeError("fessql_binds type error, must be Dict.")
-            for bind_name, bind in self.fessql_binds.items():
-                if not isinstance(bind, dict):
-                    raise TypeError(f"fessql_binds config {bind_name} type error, must be Dict.")
-                missing_items = []
-                for item in ["fessql_mysql_host", "fessql_mysql_port", "fessql_mysql_username",
-                             "fessql_mysql_passwd", "fessql_mysql_dbname"]:
-                    if item not in bind:
-                        missing_items.append(item)
-                if missing_items:
-                    raise ConfigError(f"fessql_binds config {bind_name} error, "
-                                      f"missing {' '.join(missing_items)} config item.")
+
+        try:
+            from sanic import Sanic
+        except ImportError as e:
+            raise ImportError(f"Sanic import error {e}.")
+        else:
+            if not isinstance(self.app, Sanic):
+                raise FuncArgsError("app type must be Sanic.")
 
     @property
     def query(self, ) -> Query:

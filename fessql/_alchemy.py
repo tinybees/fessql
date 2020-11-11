@@ -14,12 +14,13 @@ import sqlalchemy as sa
 from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
-from .err import FuncArgsError
+from .err import ConfigError
 from .utils import gen_class_name
 
 __all__ = ("AlchemyMixIn",)
 
 
+# noinspection PyUnresolvedReferences
 class AlchemyMixIn(object):
     """
     base alchemy
@@ -27,25 +28,28 @@ class AlchemyMixIn(object):
 
     Model: ClassVar[DeclarativeMeta] = declarative_base()
 
-    # noinspection PyUnresolvedReferences
-    def _verify_sanic_app(self, ):
+    def verify_binds(self, ):
         """
-        校验APP类型是否正确
-
-        暂时只支持sanic框架
+        校验fessql_binds
         Args:
 
         Returns:
 
         """
-
-        try:
-            from sanic import Sanic
-        except ImportError as e:
-            raise ImportError(f"Sanic import error {e}.")
-        else:
-            if not isinstance(self.app, Sanic):
-                raise FuncArgsError("app type must be Sanic.")
+        if self.fessql_binds:
+            if not isinstance(self.fessql_binds, dict):
+                raise TypeError("fessql_binds type error, must be Dict.")
+            for bind_name, bind in self.fessql_binds.items():
+                if not isinstance(bind, dict):
+                    raise TypeError(f"fessql_binds config {bind_name} type error, must be Dict.")
+                missing_items = []
+                for item in ["fessql_mysql_host", "fessql_mysql_port", "fessql_mysql_username",
+                             "fessql_mysql_passwd", "fessql_mysql_dbname"]:
+                    if item not in bind:
+                        missing_items.append(item)
+                if missing_items:
+                    raise ConfigError(f"fessql_binds config {bind_name} error, "
+                                      f"missing {' '.join(missing_items)} config item.")
 
     def gen_model(self, model_cls: DeclarativeMeta, class_suffix: str = None, table_suffix: str = None,
                   table_name: str = None, field_mapping: Dict[str, str] = None,

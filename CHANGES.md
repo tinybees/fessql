@@ -1,5 +1,19 @@
 ## fessql Changelog
 
+###[1.0.1b7] - 2020-11-11
+
+#### Added 
+- 增加适配fastapi框架使用sqlalchemy的功能.
+- 增加fastapi中对提交session上下文的处理,更便捷.
+- 增加直接执行sql的execute功能
+- 增加多数据库通过bind绑定和访问的功能
+- 增加对探测session连通的ping功能
+- 增加session上下文生成和关闭的功能
+
+#### Changed 
+- 更改异步和同步的类名直接以框架名称命名标识.
+
+
 ###[1.0.1b5~1.0.1b6] - 2020-9-22
 
 #### Changed 

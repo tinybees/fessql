@@ -7,13 +7,13 @@
 @time: 2020/9/3 上午11:31
 """
 from .query import *
-from .aio_mysql import *
+from .sanic_mysql import *
 from .blinker import *
 
 __all__ = (
     "Query",
 
-    "AIOMySQL", "Pagination", "Session",
+    "SanicMySQL", "Pagination", "Session",
 
     "SanicSignal", "sanic_add_task",
 

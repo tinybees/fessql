@@ -21,43 +21,25 @@ from sqlalchemy.orm import Query, Session
 from sqlalchemy.orm.scoping import scoped_session
 from sqlalchemy.sql.schema import Table
 
+from . import DialectDriver
 from .._alchemy import AlchemyMixIn
 from .._cachelru import LRU
 from .._err_msg import mysql_msg
 from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
 from ..utils import _verify_message
 
-__all__ = ("DBAlchemy", "DialectDriver")
+__all__ = ("FlaskAlchemy",)
 
 _lru_cache = LRU()
 
 
-class DialectDriver(object):
-    """
-    数据库方言驱动
-    """
-    #  postgresql
-    pg_default = "postgresql+psycopg2"  # default
-    pg_pg8000 = "postgresql+pg8000"
-    # mysql
-    mysql_default = "mysql+mysqldb"  # default
-    mysql_pymysql = "mysql+pymysql"
-    # oracle
-    oracle_cx = "oracle+cx_oracle"  # default
-    # SQL Server
-    mssql_default = "mssql+pyodbc"  # default
-    mssql_pymssql = "mssql+pymssql"
-    # SQLite
-    sqlite = "sqlite:///"
-
-
-class DBAlchemy(AlchemyMixIn, SQLAlchemy):
+class FlaskAlchemy(AlchemyMixIn, SQLAlchemy):
     """
     DB同步操作指南
     """
 
     def __init__(self, app=None, *, username: str = "root", passwd: str = None, host: str = "127.0.0.1",
-                 port: int = 3306, dbname: str = None, pool_size: int = 50, is_binds: bool = False,
+                 port: int = 3306, dbname: str = None, pool_size: int = 10, is_binds: bool = False,
                  binds: Dict[str, str] = None, dialect: str = DialectDriver.mysql_pymysql, **kwargs):
         """
         DB同步操作指南
@@ -309,7 +291,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         self.session.delete(model_obj) if session is None else session.delete(model_obj)
 
     @contextmanager
-    def insert_context(self, session: Session = None) -> Generator['DBAlchemy', None, None]:
+    def insert_context(self, session: Session = None) -> Generator['FlaskAlchemy', None, None]:
         """
         插入数据context
         Args:
@@ -337,7 +319,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             raise HttpError(400, message=self.message[1][self.msg_zh], error=e)
 
     @contextmanager
-    def update_context(self, session: Session = None) -> Generator['DBAlchemy', None, None]:
+    def update_context(self, session: Session = None) -> Generator['FlaskAlchemy', None, None]:
         """
         更新数据context
         Args:
@@ -365,7 +347,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
             raise HttpError(400, message=self.message[2][self.msg_zh], error=e)
 
     @contextmanager
-    def delete_context(self, session: Session = None) -> Generator['DBAlchemy', None, None]:
+    def delete_context(self, session: Session = None) -> Generator['FlaskAlchemy', None, None]:
         """
         删除数据context
         Args:
@@ -417,6 +399,7 @@ class DBAlchemy(AlchemyMixIn, SQLAlchemy):
         else:
             return cursor
 
+    # noinspection DuplicatedCode
     def execute(self, query: Union[Query, str], params: Dict = None, session: Session = None, size: int = None,
                 cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
         """

@@ -43,6 +43,7 @@ setup(name='fessql',
       extras_require={
           "sanic": ['aiomysql>=0.0.20', ],
           "flask": ['flask-sqlalchemy>=2.3.2,<=2.4.1', 'PyMySQL<=0.9.3,>=0.9', ],
+          "fastapi": ['PyMySQL<=0.9.3,>=0.9', ],
       },
       python_requires=">=3.6",
       keywords="mysql, asyncio, crud, session",
