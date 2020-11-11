@@ -392,6 +392,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             sessionmaker_.remove()
         for _, engine_ in self.engine_pool.items():
             engine_.dispose()
+        aelog.debug("清理所有数据库连接池完毕！")
 
     def _verify_fastapi_app(self, ):
         """

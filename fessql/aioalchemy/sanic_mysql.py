@@ -554,6 +554,7 @@ class SanicMySQL(AlchemyMixIn, object):
                 aio_engine.close()
                 tasks.append(asyncio.ensure_future(aio_engine.wait_closed()))
             await asyncio.wait(tasks)
+            aelog.debug("清理所有数据库连接池完毕！")
 
     def init_engine(self, *, username: str = "root", passwd: str = None, host: str = "127.0.0.1", port: int = 3306,
                     dbname: str = None, pool_size: int = 50, **kwargs):
