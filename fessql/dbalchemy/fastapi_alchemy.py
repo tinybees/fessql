@@ -20,7 +20,6 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.engine.result import ResultProxy, RowProxy
 from sqlalchemy.engine.url import URL
 from sqlalchemy.exc import DatabaseError, IntegrityError
-from sqlalchemy.orm import Query, Session as SessionBase
 from sqlalchemy.sql.schema import Table
 
 from .drivers import DialectDriver
@@ -174,7 +173,7 @@ class FesQuery(orm.Query):
         return FesPagination(self, page, per_page, total, items)
 
 
-class FesSession(SessionBase):
+class FesSession(orm.Session):
     """
     改造orm的session类使得能够自动提示query的所有方法
     """
@@ -190,7 +189,7 @@ class FesSession(SessionBase):
 
     # noinspection PyTypeChecker
     def query(self, *entities, **kwargs) -> FesQuery:
-        """Return a new :class:`.Query` object corresponding to this
+        """Return a new :class:`.FesQuery` object corresponding to this
         :class:`.Session`."""
 
         return super().query(*entities, **kwargs)
@@ -204,7 +203,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
     def __init__(self, app=None, *, username: str = "root", passwd: str = None,
                  host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
                  dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
-                 query_class: Type[orm.Query] = FesQuery, session_options: Dict[str, Any] = None,
+                 query_class: Type[FesQuery] = FesQuery, session_options: Dict[str, Any] = None,
                  engine_options: Dict[str, Any] = None, **kwargs):
         """
         DB同步操作指南，适用于fastapi
@@ -633,7 +632,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             raise HttpError(400, message=mysql_msg[3]["msg_zh"], error=e)
 
     @staticmethod
-    def _execute(session: FesSession, query: Union[Query, str], params: Dict = None) -> ResultProxy:
+    def _execute(session: FesSession, query: Union[FesQuery, str], params: Dict = None) -> ResultProxy:
         """
         插入数据，更新或者删除数据
         Args:
@@ -664,7 +663,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             return cursor
 
     # noinspection DuplicatedCode
-    def execute(self, session: FesSession, query: Union[Query, str], params: Dict = None, size: int = None,
+    def execute(self, session: FesSession, query: Union[FesQuery, str], params: Dict = None, size: int = None,
                 cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
         """
         插入数据，更新或者删除数据
