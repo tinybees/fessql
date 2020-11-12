@@ -14,6 +14,8 @@ from .fastapi_alchemy import *
 
 __all__ = (
     "DialectDriver",
+
     "FlaskAlchemy",
-    "FastapiPagination", "FastapiQuery", "FastapiAlchemy",
+
+    "FesPagination", "FesQuery", "FesSession", "FastapiAlchemy",
 )
