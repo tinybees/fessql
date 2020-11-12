@@ -179,13 +179,21 @@ class FesSession(SessionBase):
     改造orm的session类使得能够自动提示query的所有方法
     """
 
-    def __init__(self, autocommit: bool = False, autoflush: bool = True, query_cls=FesQuery, **options):
+    def __init__(self, autocommit: bool = False, autoflush: bool = True,
+                 query_cls: Type[FesQuery] = FesQuery, **options):
         """
             改造orm的session类使得能够自动提示query的所有方法
         Args:
 
         """
         super().__init__(autocommit=autocommit, autoflush=autoflush, query_cls=query_cls, **options)
+
+    # noinspection PyTypeChecker
+    def query(self, *entities, **kwargs) -> FesQuery:
+        """Return a new :class:`.Query` object corresponding to this
+        :class:`.Session`."""
+
+        return super().query(*entities, **kwargs)
 
 
 class FastapiAlchemy(AlchemyMixIn, object):
@@ -504,7 +512,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             self.sessionmaker_pool[bind_key] = self.create_scoped_sessionmaker(self.engine_pool[bind_key])
         return self.sessionmaker_pool[bind_key]
 
-    def ping_session(self, session: Session, reconnect=True) -> Session:
+    def ping_session(self, session: FesSession, reconnect=True) -> FesSession:
         """
         session探测,可以探测利用gen_session生成的session也可以探测默认的scope_session
         Args:
@@ -530,7 +538,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         return session
 
     @contextmanager
-    def gen_session(self, bind_key: str = None) -> Generator[Session, None, None]:
+    def gen_session(self, bind_key: str = None) -> Generator[FesSession, None, None]:
         """
         创建或者获取指定的session
 
@@ -541,7 +549,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
 
         """
 
-        session: Session = self.gen_sessionmaker(bind_key)()
+        session: FesSession = self.gen_sessionmaker(bind_key)()
         session.bind_key = bind_key  # 设置bind key
         session = self.ping_session(session)  # 校验重连,保证可用
         try:
@@ -550,7 +558,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             session.close()
 
     @contextmanager
-    def insert_context(self, session: Session) -> Generator['FastapiAlchemy', None, None]:
+    def insert_context(self, session: FesSession) -> Generator['FastapiAlchemy', None, None]:
         """
         插入数据context
         Args:
@@ -577,7 +585,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             raise HttpError(400, message=mysql_msg[1]["msg_zh"], error=e)
 
     @contextmanager
-    def update_context(self, session: Session) -> Generator['FastapiAlchemy', None, None]:
+    def update_context(self, session: FesSession) -> Generator['FastapiAlchemy', None, None]:
         """
         更新数据context
         Args:
@@ -604,7 +612,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             raise HttpError(400, message=mysql_msg[2]["msg_zh"], error=e)
 
     @contextmanager
-    def delete_context(self, session: Session) -> Generator['FastapiAlchemy', None, None]:
+    def delete_context(self, session: FesSession) -> Generator['FastapiAlchemy', None, None]:
         """
         删除数据context
         Args:
@@ -625,7 +633,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             raise HttpError(400, message=mysql_msg[3]["msg_zh"], error=e)
 
     @staticmethod
-    def _execute(session: Session, query: Union[Query, str], params: Dict = None) -> ResultProxy:
+    def _execute(session: FesSession, query: Union[Query, str], params: Dict = None) -> ResultProxy:
         """
         插入数据，更新或者删除数据
         Args:
@@ -656,7 +664,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             return cursor
 
     # noinspection DuplicatedCode
-    def execute(self, session: Session, query: Union[Query, str], params: Dict = None, size: int = None,
+    def execute(self, session: FesSession, query: Union[Query, str], params: Dict = None, size: int = None,
                 cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
         """
         插入数据，更新或者删除数据
