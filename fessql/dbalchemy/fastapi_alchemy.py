@@ -20,7 +20,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.engine.result import ResultProxy, RowProxy
 from sqlalchemy.engine.url import URL
 from sqlalchemy.exc import DatabaseError, IntegrityError
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Query, Session as SessionBase
 from sqlalchemy.sql.schema import Table
 
 from .drivers import DialectDriver
@@ -28,10 +28,10 @@ from .._alchemy import AlchemyMixIn
 from .._err_msg import mysql_msg
 from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
 
-__all__ = ("FastapiPagination", "FastapiQuery", "FastapiAlchemy")
+__all__ = ("FesPagination", "FesQuery", "FesSession", "FastapiAlchemy")
 
 
-class FastapiPagination(object):
+class FesPagination(object):
     """Internal helper class returned by :meth:`BaseQuery.paginate`.  You
     can also construct it from any other SQLAlchemy query object if you are
     working with other libraries.  Additionally it is possible to pass `None`
@@ -39,10 +39,10 @@ class FastapiPagination(object):
     no longer work.
     """
 
-    def __init__(self, query: 'FastapiQuery', page: int, per_page: int, total: int, items: List[RowProxy]):
+    def __init__(self, query: 'FesQuery', page: int, per_page: int, total: int, items: List[RowProxy]):
         #: the unlimited query object that was used to create this
         #: pagination object.
-        self.query: FastapiQuery = query
+        self.query: FesQuery = query
         #: the current page number (1 indexed)
         self.page: int = page
         #: the number of items to be displayed on a page.
@@ -100,7 +100,7 @@ class FastapiPagination(object):
         return self.page + 1
 
 
-class FastapiQuery(orm.Query):
+class FesQuery(orm.Query):
     """
     改造Query,使得符合业务中使用
 
@@ -109,7 +109,7 @@ class FastapiQuery(orm.Query):
 
     # noinspection DuplicatedCode
     def paginate(self, page: int = 1, per_page: int = 20, max_per_page: int = None,
-                 primary_order: bool = True) -> FastapiPagination:
+                 primary_order: bool = True) -> FesPagination:
         """Returns ``per_page`` items from page ``page``.
 
         If ``page`` or ``per_page`` are ``None``, they will be retrieved from
@@ -171,7 +171,21 @@ class FastapiQuery(orm.Query):
         else:
             total = self.order_by(None).count()
 
-        return FastapiPagination(self, page, per_page, total, items)
+        return FesPagination(self, page, per_page, total, items)
+
+
+class FesSession(SessionBase):
+    """
+    改造orm的session类使得能够自动提示query的所有方法
+    """
+
+    def __init__(self, autocommit: bool = False, autoflush: bool = True, query_cls=FesQuery, **options):
+        """
+            改造orm的session类使得能够自动提示query的所有方法
+        Args:
+
+        """
+        super().__init__(autocommit=autocommit, autoflush=autoflush, query_cls=query_cls, **options)
 
 
 class FastapiAlchemy(AlchemyMixIn, object):
@@ -182,7 +196,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
     def __init__(self, app=None, *, username: str = "root", passwd: str = None,
                  host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
                  dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
-                 query_class: Type[orm.Query] = FastapiQuery, session_options: Dict[str, Any] = None,
+                 query_class: Type[orm.Query] = FesQuery, session_options: Dict[str, Any] = None,
                  engine_options: Dict[str, Any] = None, **kwargs):
         """
         DB同步操作指南，适用于fastapi
@@ -442,7 +456,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         :param bind: 引擎的bind
         """
         self.session_options.setdefault("query_cls", self.Query)
-        return orm.sessionmaker(bind=bind, **self.session_options)
+        return orm.sessionmaker(bind=bind, class_=FesSession, **self.session_options)
 
     @staticmethod
     def create_engine(sa_url: Union[str, URL], engine_opts: Dict[str, Any]) -> Engine:
