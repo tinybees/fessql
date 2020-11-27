@@ -172,6 +172,84 @@ class FesQuery(orm.Query):
 
         return FesPagination(self, page, per_page, total, items)
 
+    def filter(self, *criterion) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().filter(*criterion)
+
+    def filter_by(self, **kwargs) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().filter_by(**kwargs)
+
+    def with_entities(self, *entities) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().with_entities(*entities)
+
+    def options(self, *args) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().options(*args)
+
+    def with_session(self, session) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().with_session(session)
+
+    def order_by(self, *criterion) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().order_by(*criterion)
+
+    def group_by(self, *criterion) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().group_by(*criterion)
+
+    def having(self, criterion) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().having(criterion)
+
+    def union(self, *q) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().union(*q)
+
+    def union_all(self, *q) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().union_all(*q)
+
+    def distinct(self, *expr) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().distinct(*expr)
+
+    def with_hint(self, selectable, text_, dialect_name="*") -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().with_hint(selectable, text_, dialect_name)
+
+    def execution_options(self, **kwargs) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().execution_options(**kwargs)
+
 
 class FesSession(orm.Session):
     """
@@ -235,8 +313,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
                                                     "fessql_mysql_port":3306,
                                                     "fessql_mysql_username":"root",
                                                     "fessql_mysql_passwd":"",
-                                                    "fessql_mysql_dbname":"dbname",
-                                                    "fessql_pool_size":10}}
+                                                    "fessql_mysql_dbname":"dbname"}}
         """
         self.app = app
         # engine pool
@@ -291,7 +368,9 @@ class FastapiAlchemy(AlchemyMixIn, object):
         self.engine_options.setdefault("max_overflow", self.kwargs.get("max_overflow", 10))
         self.engine_options.setdefault("pool_use_lifo", self.kwargs.get("pool_use_lifo", True))
         self.engine_options.setdefault("echo", self.kwargs.get("echo", False))
-        self.engine_options.setdefault("connect_args", {"connect_timeout": self.kwargs.get("connect_timeout", 60)})
+        self.engine_options.setdefault("connect_args", {
+            "connect_timeout": self.kwargs.get("connect_timeout", 60),
+            "charset": self.charset, "binary_prefix": self.binary_prefix})
 
     @staticmethod
     def apply_engine_opts(configs: Dict[str, Any], options: Dict[str, Any]):
@@ -330,11 +409,8 @@ class FastapiAlchemy(AlchemyMixIn, object):
         Returns:
 
         """
-        return URL(drivername=self.dialect,
-                   username=username, password=password,
-                   host=host, port=port,
-                   database=db_name,
-                   query={"charset": self.charset, "binary_prefix": "true" if self.binary_prefix else "false"})
+        return URL(drivername=self.dialect, username=username, password=password,
+                   host=host, port=port, database=db_name)
 
     # noinspection DuplicatedCode
     def init_app(self, app):
@@ -368,6 +444,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         # 注册停止事件
         app.on_event('shutdown')(self.close_connection)
 
+    # noinspection DuplicatedCode
     def init_engine(self, *, username: str = "root", passwd: str = None,
                     host: str = "127.0.0.1", port: int = 3306, dbname: str = None, **kwargs):
         """

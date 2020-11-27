@@ -1,6 +1,14 @@
 ## fessql Changelog
 
-###[1.0.1b7] - 2020-11-11
+###[1.0.3b1] - 2020-11-27
+
+#### Added 
+- session中新增filter,filter_by等常用可提示功能.
+
+#### Changed 
+- 更改binary_prefix的设置方式全部放到connect_args参数中
+
+###[1.0.2b1] - 2020-11-11
 
 #### Added 
 - 增加适配fastapi框架使用sqlalchemy的功能.
