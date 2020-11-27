@@ -202,6 +202,18 @@ class FesQuery(orm.Query):
         """
         return super().with_session(session)
 
+    def with_for_update(self, read=False, nowait=False, of=None, skip_locked=False, key_share=False) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().with_for_update(read, nowait, of, skip_locked, key_share)
+
+    def with_labels(self) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().with_labels()
+
     def order_by(self, *criterion) -> 'FesQuery':
         """
         继承父类便于自动提示提示
@@ -232,6 +244,30 @@ class FesQuery(orm.Query):
         """
         return super().union_all(*q)
 
+    def intersect(self, *q) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().intersect(*q)
+
+    def intersect_all(self, *q) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().intersect_all(*q)
+
+    def except_(self, *q) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().except_(*q)
+
+    def except_all(self, *q) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().except_all(*q)
+
     def distinct(self, *expr) -> 'FesQuery':
         """
         继承父类便于自动提示提示
@@ -249,6 +285,60 @@ class FesQuery(orm.Query):
         继承父类便于自动提示提示
         """
         return super().execution_options(**kwargs)
+
+    def add_columns(self, *column) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().add_columns(*column)
+
+    def join(self, *props, **kwargs) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().join(*props, **kwargs)
+
+    def outerjoin(self, *props, **kwargs) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().outerjoin(*props, **kwargs)
+
+    def correlate(self, *args) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().correlate(*args)
+
+    def params(self, *args, **kwargs) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().params(*args, **kwargs)
+
+    def prefix_with(self, *prefixes) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().prefix_with(*prefixes)
+
+    def suffix_with(self, *suffixes) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().suffix_with(*suffixes)
+
+    def subquery(self, name=None, with_labels=False, reduce_columns=False) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().subquery(name, with_labels, reduce_columns)
+
+    def add_entity(self, entity, alias=None) -> 'FesQuery':
+        """
+        继承父类便于自动提示提示
+        """
+        return super().add_entity(entity, alias)
 
 
 class FesSession(orm.Session):

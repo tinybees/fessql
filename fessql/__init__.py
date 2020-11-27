@@ -19,6 +19,7 @@ __all__ = (
     "case", "cast", "extract", "tuple_", "except_", "except_all", "intersect", "intersect_all", "union", "union_all",
     "exists", "nullsfirst", "nullslast", "asc", "desc", "distinct", "type_coerce", "true", "false", "null", "join",
     "outerjoin", "funcfilter", "func", "not_", "update", "delete", "insert", "MutableDict", "MutableList", "MutableSet",
+    "load_only",
 
     "LRI", "LRU",
 
@@ -27,4 +28,4 @@ __all__ = (
     "__version__",
 )
 
-__version__ = "1.0.3b1"
+__version__ = "1.0.3b2"
