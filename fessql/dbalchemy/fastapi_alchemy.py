@@ -799,7 +799,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             raise HttpError(400, message=mysql_msg[3]["msg_zh"], error=e)
 
     @staticmethod
-    def _execute(session: FesSession, query: Union[FesQuery, str], params: Dict = None) -> ResultProxy:
+    def execute(session: FesSession, query: Union[FesQuery, str], params: Dict = None) -> Optional[RowProxy]:
         """
         插入数据，更新或者删除数据
         Args:
@@ -807,8 +807,9 @@ class FastapiAlchemy(AlchemyMixIn, object):
             params: SQL表达式中的参数
             session: session对象, 默认是self.session
         Returns:
-            不确定执行的是什么查询，直接返回ResultProxy实例
+            不确定执行的是什么查询，直接返回RowProxy实例
         """
+        cursor: Optional[ResultProxy] = None
         try:
             cursor = session.execute(query, params)
             session.commit()
@@ -827,13 +828,17 @@ class FastapiAlchemy(AlchemyMixIn, object):
             aelog.exception(e)
             raise HttpError(400, message=mysql_msg[2]["msg_zh"], error=e)
         else:
-            return cursor
+            return cursor.fetchone() if cursor.returns_rows else None
+        finally:
+            if cursor:
+                cursor.close()
 
     # noinspection DuplicatedCode
-    def execute(self, session: FesSession, query: Union[FesQuery, str], params: Dict = None, size: int = None,
-                cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
+    @staticmethod
+    def query_execute(session: FesSession, query: Union[FesQuery, str], params: Dict = None, size: int = None,
+                      cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
         """
-        插入数据，更新或者删除数据
+        查询数据
         Args:
             query: SQL的查询字符串或者sqlalchemy表达式
             params: SQL表达式中的参数
@@ -844,7 +849,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             List[RowProxy] or RowProxy or None
         """
         params = dict(params) if isinstance(params, MutableMapping) else {}
-        cursor = self._execute(session, query, params)
+        cursor: ResultProxy = session.execute(query, params)
         if size is None:
             resp = cursor.fetchall() if cursor.returns_rows else []
         elif size == 1:

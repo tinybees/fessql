@@ -1,11 +1,12 @@
 ## fessql Changelog
 
-###[1.0.3b1~1.0.3b2] - 2020-11-27
+###[1.0.3b1~1.0.3b3] - 2020-12-8
 
 #### Added 
 - session中新增filter,filter_by等常用可提示功能.
 - session中常用的方法都已经增加,方便智能提示.
 - sql中增加load_only便捷导入方法
+- 拆分fastapi_alchemy中的excecute方法为query_execute和execute
 
 #### Changed 
 - 更改binary_prefix的设置方式全部放到connect_args参数中
