@@ -8,9 +8,9 @@
 """
 import weakref
 from collections import MutableMapping, MutableSequence
-from typing import Dict, List, Union
+from typing import Any, Dict, List, TypeVar, Union
 
-__all__ = ("_verify_message", "gen_class_name", "Cached")
+__all__ = ("_verify_message", "gen_class_name", "Cached", "Undefined")
 
 
 def _verify_message(src_message: Dict, message: Union[List, Dict]):
@@ -67,3 +67,27 @@ class Cached(metaclass=_Cached):
 
     """
     pass
+
+
+T = TypeVar('T')
+
+
+class UndefinedType(object):
+    """
+    未定义变量类
+    Args:
+    Returns:
+
+    """
+
+    def __repr__(self) -> str:
+        return 'VarUndefined'
+
+    def __copy__(self: T) -> T:
+        return self
+
+    def __deepcopy__(self: T, _: Any) -> T:
+        return self
+
+
+Undefined = UndefinedType()

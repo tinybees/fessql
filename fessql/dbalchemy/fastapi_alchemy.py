@@ -26,6 +26,7 @@ from .drivers import DialectDriver
 from .._alchemy import AlchemyMixIn
 from .._err_msg import mysql_msg
 from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
+from ..utils import Undefined
 
 __all__ = ("FesPagination", "FesQuery", "FesSession", "FastapiAlchemy")
 
@@ -691,8 +692,8 @@ class FastapiAlchemy(AlchemyMixIn, object):
             session.execute(text("SELECT 1")).first()
         except sqlalchemy_err.OperationalError as err:
             if reconnect:
-                bind_key = getattr(session, "bind_key", "")
-                if bind_key:
+                bind_key = getattr(session, "bind_key", Undefined)
+                if bind_key != Undefined:
                     self.sessionmaker_pool[bind_key].remove()
                     session = self.gen_sessionmaker(bind_key)()
                     session.bind_key = bind_key  # 设置bind key
@@ -704,7 +705,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         return session
 
     @contextmanager
-    def gen_session(self, bind_key: str = None) -> Generator[FesSession, None, None]:
+    def gen_session(self, bind_key: Optional[str] = None) -> Generator[FesSession, None, None]:
         """
         创建或者获取指定的session
 

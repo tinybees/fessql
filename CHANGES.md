@@ -1,5 +1,15 @@
 ## fessql Changelog
 
+###[1.0.4] - 2021-1-14
+
+#### Added 
+- 经过项目测试可以发布正式版本
+
+#### Changed 
+- 修复fastapi alchemy中如果默认的连接失败ping操作也会失败的问题
+- 更改flask alchemy中如果ping操作默认key的类型值
+
+
 ###[1.0.3b1~1.0.3b3] - 2020-12-8
 
 #### Added 

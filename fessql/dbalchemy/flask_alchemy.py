@@ -40,7 +40,7 @@ from .._alchemy import AlchemyMixIn
 from .._cachelru import LRU
 from .._err_msg import mysql_msg
 from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
-from ..utils import _verify_message
+from ..utils import _verify_message, Undefined
 
 __all__ = ("FlaskAlchemy",)
 
@@ -198,8 +198,8 @@ class FlaskAlchemy(AlchemyMixIn, SQLAlchemy):
         except sqlalchemy_err.OperationalError as err:
             if reconnect:
                 if isinstance(session, Session):
-                    bind_key = getattr(session, "bind_key", "")
-                    if bind_key:
+                    bind_key = getattr(session, "bind_key", Undefined)
+                    if bind_key != Undefined:
                         with self.set_bindkey(bind_key):
                             self.scoped_sessions[bind_key].remove()
                             session = self.scoped_sessions[bind_key]()
