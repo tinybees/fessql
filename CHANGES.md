@@ -8,6 +8,7 @@
 #### Changed 
 - 修复fastapi alchemy中如果默认的连接失败ping操作也会失败的问题
 - 更改flask alchemy中如果ping操作默认key的类型值
+- 修复flask alchemy应用结束自动关闭session会出错的问题
 
 
 ###[1.0.3b1~1.0.3b3] - 2020-12-8
