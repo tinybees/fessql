@@ -475,7 +475,6 @@ class SanicMySQL(AlchemyMixIn, object):
         self.fessql_binds: Dict = kwargs.pop("fessql_binds", {})  # binds config
         self.message = kwargs.pop("message", {})
         self.use_zh = kwargs.pop("use_zh", True)
-        self.max_per_page = kwargs.pop("max_per_page", None)
         self.msg_zh: str = ""
         # self.autocommit = False  # 自动提交开关,默认和connection中的默认值一致
         self._conn_kwargs: Dict[str, Any] = kwargs  # 其他连接关键字参数
@@ -523,7 +522,6 @@ class SanicMySQL(AlchemyMixIn, object):
         passwd = passwd if passwd is None else str(passwd)
         self.message = _verify_message(mysql_msg, message)
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
-        self.max_per_page = kwargs.pop("max_per_page", None) or self.max_per_page
         self._conn_kwargs = kwargs
 
         @app.listener('before_server_start')
@@ -589,7 +587,6 @@ class SanicMySQL(AlchemyMixIn, object):
         passwd = passwd if passwd is None else str(passwd)
         self.message = _verify_message(mysql_msg, message)
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
-        self.max_per_page = kwargs.pop("max_per_page", None) or self.max_per_page
         loop = asyncio.get_event_loop()
         self._conn_kwargs = kwargs
 
@@ -651,7 +648,7 @@ class SanicMySQL(AlchemyMixIn, object):
         Returns:
 
         """
-        return Query(self.max_per_page)
+        return Query()
 
     async def _create_engine(self, bind: str):
         """

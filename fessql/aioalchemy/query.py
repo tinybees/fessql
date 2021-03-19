@@ -203,7 +203,7 @@ class Query(BaseQuery):
     查询
     """
 
-    def __init__(self, max_per_page: int = None):
+    def __init__(self, ):
         """
 
         Args:
@@ -217,8 +217,6 @@ class Query(BaseQuery):
         # query
         self._query_obj: Optional[Union[Select, Insert, Update, Delete]] = None
         self._query_count_obj: Optional[Select] = None  # 查询数量select
-        # per page max count
-        self._max_per_page: Optional[int] = max_per_page
         #: the current page number (1 indexed)
         self._page: int = 1
         #: the number of items to be displayed on a page.
@@ -466,12 +464,12 @@ class Query(BaseQuery):
                 self._query_count_obj = query
             return self
 
+    # noinspection DuplicatedCode
     def paginate_query(self, *, page: int = 1, per_page: int = 20,
                        primary_order: bool = True) -> 'Query':
         """
         If ``page`` or ``per_page`` are ``None``, they will be retrieved from
-        the request query. If ``max_per_page`` is specified, ``per_page`` will
-        be limited to that value. If there is no request or they aren't in the
+        the request query. If there is no request or they aren't in the
         query, they default to 1 and 20 respectively.
 
         目前是改造如果limit传递为0，则返回所有的数据，这样业务代码中就不用更改了
@@ -496,9 +494,6 @@ class Query(BaseQuery):
             per_page = int(per_page)
         except (TypeError, ValueError):
             per_page = 20
-
-        if self._max_per_page is not None:
-            per_page = min(per_page, self._max_per_page)
 
         if page < 1:
             page = 1

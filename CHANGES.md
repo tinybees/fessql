@@ -1,5 +1,17 @@
 ## fessql Changelog
 
+###[1.0.5] - 2021-3-19
+
+#### Added 
+- 重构flask_alchemy和fastapi_alchemy抽取FesQuery和FesPagination使之共用
+- 去掉异步Query中对于max_per_page的处理，不再处理此参数
+
+#### Changed 
+- 修复falstapi alchemy中分页因为参数不对应造成的数据错误问题
+- 去掉falstapi alchemy中paginate方法的max_per_page参数
+- 修复flask alchemy中分页因为参数不对应造成的数据错误的问题
+
+
 ###[1.0.4] - 2021-1-14
 
 #### Added 

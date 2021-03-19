@@ -10,6 +10,7 @@ from .drivers import DialectDriver
 
 from .flask_alchemy import *
 from .fastapi_alchemy import *
+from ._query import *
 
 
 __all__ = (
@@ -17,5 +18,7 @@ __all__ = (
 
     "FlaskAlchemy",
 
-    "FesPagination", "FesQuery", "FesSession", "FastapiAlchemy",
+    "FesSession", "FastapiAlchemy",
+
+    "FesPagination", "FesQuery",
 )

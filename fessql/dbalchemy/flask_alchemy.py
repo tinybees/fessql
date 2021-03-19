@@ -17,25 +17,38 @@ from sqlalchemy.engine.result import ResultProxy, RowProxy
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.orm import Query, Session
 from sqlalchemy.orm.scoping import scoped_session
-from sqlalchemy.sql.schema import Table
 
 try:
     from flask import g
     from flask_sqlalchemy import BaseQuery, Pagination, SQLAlchemy
-except ImportError as e:
+except ImportError as ex:
     # noinspection Mypy
-    class SQLAlchemy(object):
+    class FesSQLAlchemy:
         """
         抛出未import异常
         """
 
         def __init__(self) -> None:
-            raise ImportError(f"flask_sqlalchemy import error {e}.")
+            raise ImportError(f"flask_sqlalchemy import error {ex}.")
 
 
-    BaseQuery = Pagination = SQLAlchemy
+    class FesFlask:
+        """
+        抛出未import异常
+        """
+
+        def __setattr__(self, key, value) -> None:
+            raise ImportError(f"Flask import error {ex}.")
+
+        def __getattr__(self, item) -> None:
+            raise ImportError(f"Flask import error {ex}.")
+
+
+    BaseQuery = Pagination = SQLAlchemy = FesSQLAlchemy
+    g = FesFlask
 
 from .drivers import DialectDriver
+from ._query import FesQuery
 from .._alchemy import AlchemyMixIn
 from .._cachelru import LRU
 from .._err_msg import mysql_msg
@@ -94,7 +107,7 @@ class FlaskAlchemy(AlchemyMixIn, SQLAlchemy):
 
         # 这里要用重写的BaseQuery, 根据BaseQuery的规则,Model中的query_class也需要重新指定为子类model,
         # 但是从Model的初始化看,如果Model的query_class为None的话还是会设置为和Query一致，符合要求
-        super().__init__(app, query_class=CustomBaseQuery)
+        super().__init__(app, query_class=FesQuery)
 
     def init_app(self, app, username: str = None, passwd: str = None, host: str = None, port: int = None,
                  dbname: str = None, pool_size: int = None, is_binds: bool = None,
@@ -445,77 +458,3 @@ class FlaskAlchemy(AlchemyMixIn, SQLAlchemy):
             cursor.close()
 
         return resp
-
-
-class CustomBaseQuery(BaseQuery):
-    """
-    改造BaseQuery,使得符合业务中使用
-
-    目前是改造如果limit传递为0，则返回所有的数据，这样业务代码中就不用更改了
-    """
-
-    # noinspection DuplicatedCode
-    def paginate(self, page: int = 1, per_page: int = 20, max_per_page: int = None,
-                 primary_order: bool = True) -> Pagination:
-        """Returns ``per_page`` items from page ``page``.
-
-        If ``page`` or ``per_page`` are ``None``, they will be retrieved from
-        the request query. If ``max_per_page`` is specified, ``per_page`` will
-        be limited to that value. If there is no request or they aren't in the
-        query, they default to 1 and 20 respectively.
-
-        * No items are found and ``page`` is not 1.
-        * ``page`` is less than 1, or ``per_page`` is negative.
-        * ``page`` or ``per_page`` are not ints.
-        * primary_order: 默认启用主键ID排序的功能，在大数据查询时可以关闭此功能，在90%数据量不大的情况下可以加快分页的速度
-
-        ``page`` and ``per_page`` default to 1 and 20 respectively.
-
-        Returns a :class:`Pagination` object.
-        """
-
-        try:
-            page = int(page)
-        except (TypeError, ValueError):
-            page = 1
-
-        try:
-            per_page = int(per_page)
-        except (TypeError, ValueError):
-            per_page = 20
-
-        if max_per_page is not None:
-            per_page = min(per_page, max_per_page)
-
-        if page < 1:
-            page = 1
-
-        if per_page < 0:
-            per_page = 20
-
-        if primary_order is True:
-
-            # 如果分页获取的时候没有进行排序,并且model中有id字段,则增加用id字段的升序排序
-            # 前提是默认id是主键,因为不排序会有混乱数据,所以从中间件直接解决,业务层不需要关心了
-            # 如果业务层有排序了，则此处不再提供排序功能
-            # 如果遇到大数据量的分页查询问题时，建议关闭此处，然后再基于已有的索引分页
-            if self._order_by is False or self._order_by is None:  # type: ignore
-                select_model = getattr(self._primary_entity, "selectable", None)
-
-                if isinstance(select_model, Table) and getattr(select_model.columns, "id", None) is not None:
-                    self._order_by = [select_model.columns.id.asc()]
-
-        # 如果per_page为0,则证明要获取所有的数据，否则还是通常的逻辑
-        if per_page != 0:
-            items = self.limit(per_page).offset((page - 1) * per_page).all()
-        else:
-            items = self.all()
-
-        # No need to count if we're on the first page and there are fewer
-        # items than we expected.
-        if page == 1 and len(items) < per_page:
-            total = len(items)
-        else:
-            total = self.order_by(None).count()
-
-        return Pagination(self, page, per_page, total, items)
