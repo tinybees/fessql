@@ -5,6 +5,7 @@
 #### Added 
 - 重构flask_alchemy和fastapi_alchemy抽取FesQuery和FesPagination使之共用
 - 去掉异步Query中对于max_per_page的处理，不再处理此参数
+- 增加sqlalchemy版本限制
 
 #### Changed 
 - 修复falstapi alchemy中分页因为参数不对应造成的数据错误问题
