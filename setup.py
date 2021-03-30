@@ -39,7 +39,7 @@ setup(name='fessql',
       packages=['fessql', 'fessql.aioalchemy', 'fessql.dbalchemy'],
       entry_points={},
       install_requires=['aelog>=1.0.3',
-                        'sqlalchemy>=1.2.12', ],
+                        'sqlalchemy>=1.2.12,<=1.3.23', ],
       extras_require={
           "sanic": ['aiomysql>=0.0.20', ],
           "flask": ['flask-sqlalchemy>=2.3.2,<=2.4.1', 'PyMySQL<=0.9.3,>=0.9', ],

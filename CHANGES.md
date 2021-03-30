@@ -1,6 +1,6 @@
 ## fessql Changelog
 
-###[1.0.5] - 2021-3-19
+###[1.0.6] - 2021-3-30
 
 #### Added 
 - 重构flask_alchemy和fastapi_alchemy抽取FesQuery和FesPagination使之共用
