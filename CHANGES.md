@@ -1,5 +1,12 @@
 ## fessql Changelog
 
+###[1.0.7] - 2021-7-30
+
+
+#### Changed 
+- 修复flask_alchemy出现的获取models的表时增加model造成的动态改变字典的错误
+
+
 ###[1.0.6] - 2021-3-30
 
 #### Added 

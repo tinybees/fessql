@@ -181,6 +181,10 @@ class FlaskAlchemy(AlchemyMixIn, SQLAlchemy):
         bind = g.bind_key if bind is None and self.is_binds and getattr(g, "bind_key", None) else bind
         return super().get_engine(app=app, bind=bind)
 
+    def get_tables_for_bind(self, bind=None):
+        """Returns a list of all tables relevant for a bind."""
+        return [table for table in list(self.Model.metadata.tables.values()) if table.info.get('bind_key') == bind]
+
     def get_binds(self, app=None):
         """Returns a dictionary with a table->engine mapping.
 
