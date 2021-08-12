@@ -62,12 +62,12 @@ class Pagination(object):
             pages = int(ceil(self.total / float(self.per_page)))
         return pages
 
-    async def prev(self, ) -> List[RowProxy]:
+    async def prev(self, ) -> 'Pagination':
         """Returns a :class:`Pagination` object for the previous page."""
-        self.page -= 1
-        self._query._offset_clause = (self.page - 1) * self.per_page
-        self._query.select_query()  # 重新生成分页SQL
-        return await self.session._find_data(self._query)
+        self._query.paginate_query(page=self.page - 1, per_page=self.per_page)
+        items = await self.session._find_data(self._query)
+
+        return Pagination(self.session, self._query, self.total, items)
 
     @property
     def prev_num(self) -> Optional[int]:
@@ -81,12 +81,12 @@ class Pagination(object):
         """True if a previous page exists"""
         return self.page > 1
 
-    async def next(self, ) -> List[RowProxy]:
+    async def next(self, ) -> 'Pagination':
         """Returns a :class:`Pagination` object for the next page."""
-        self.page += 1
-        self._query._offset_clause = (self.page - 1) * self.per_page
-        self._query.select_query()  # 重新生成分页SQL
-        return await self.session._find_data(self._query)
+        self._query.paginate_query(page=self.page + 1, per_page=self.per_page)
+        items = await self.session._find_data(self._query)
+
+        return Pagination(self.session, self._query, self.total, items)
 
     @property
     def has_next(self) -> bool:

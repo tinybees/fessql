@@ -5,7 +5,7 @@
 
 #### Changed 
 - 修复flask_alchemy出现的获取models的表时增加model造成的动态改变字典的错误
-
+- 修复异步查询分页Pagination类中的prev和next返回数据和查询不一致导致的无法直接使用的问题
 
 ###[1.0.6] - 2021-3-30
 
