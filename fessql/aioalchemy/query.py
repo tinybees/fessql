@@ -465,8 +465,7 @@ class Query(BaseQuery):
             return self
 
     # noinspection DuplicatedCode
-    def paginate_query(self, *, page: int = 1, per_page: int = 20,
-                       primary_order: bool = True) -> 'Query':
+    def paginate_query(self, *, page: int = 1, per_page: int = 20, primary_order: bool = True) -> 'Query':
         """
         If ``page`` or ``per_page`` are ``None``, they will be retrieved from
         the request query. If there is no request or they aren't in the
@@ -503,17 +502,20 @@ class Query(BaseQuery):
 
         self._page, self._per_page = page, per_page
 
+        if primary_order is True:
+
+            # 如果分页获取的时候没有进行排序,并且model中有id字段,则增加用id字段的升序排序
+            # 前提是默认id是主键,因为不排序会有混乱数据,所以从中间件直接解决,业务层不需要关心了
+            # 如果业务层有排序了，则此处不再提供排序功能
+            # 如果遇到大数据量的分页查询问题时，建议关闭此处，然后再基于已有的索引分页
+            if not self._order_by and getattr(self._model, "id", None) is not None:
+                self.order_by(getattr(self._model, "id").asc())
+
         try:
             # 如果per_page为0,则证明要获取所有的数据，否则还是通常的逻辑
             if per_page != 0:
                 self._limit_clause = per_page
                 self._offset_clause = (page - 1) * per_page
-                # 如果分页获取的时候没有进行排序,并且model中有id字段,则增加用id字段的升序排序
-                # 前提是默认id是主键,因为不排序会有混乱数据,所以从中间件直接解决,业务层不需要关心了
-                # 如果业务层有排序了，则此处不再提供排序功能
-                # 如果遇到大数据量的分页查询问题时，建议关闭此处，然后再基于已有的索引分页
-                if primary_order is True and getattr(self._model, "id", None) is not None:
-                    self.order_by(getattr(self._model, "id").asc())
 
             self.select_query()  # 生成select SQL
             self.select_query(is_count=True)  # 生成select count SQL

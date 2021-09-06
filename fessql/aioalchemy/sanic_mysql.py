@@ -62,9 +62,9 @@ class Pagination(object):
             pages = int(ceil(self.total / float(self.per_page)))
         return pages
 
-    async def prev(self, ) -> 'Pagination':
+    async def prev(self, primary_order: bool = True) -> 'Pagination':
         """Returns a :class:`Pagination` object for the previous page."""
-        self._query.paginate_query(page=self.page - 1, per_page=self.per_page)
+        self._query.paginate_query(page=self.page - 1, per_page=self.per_page, primary_order=primary_order)
         items = await self.session._find_data(self._query)
 
         return Pagination(self.session, self._query, self.total, items)
@@ -81,9 +81,9 @@ class Pagination(object):
         """True if a previous page exists"""
         return self.page > 1
 
-    async def next(self, ) -> 'Pagination':
+    async def next(self, primary_order: bool = True) -> 'Pagination':
         """Returns a :class:`Pagination` object for the next page."""
-        self._query.paginate_query(page=self.page + 1, per_page=self.per_page)
+        self._query.paginate_query(page=self.page + 1, per_page=self.per_page, primary_order=primary_order)
         items = await self.session._find_data(self._query)
 
         return Pagination(self.session, self._query, self.total, items)
