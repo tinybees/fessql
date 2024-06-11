@@ -27,7 +27,7 @@ from .._err_msg import mysql_msg
 from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
 from ..utils import Undefined
 
-__all__ = ("FesSession", "FastapiAlchemy")
+__all__ = ("FesSession", "FastapiAlchemy", "FesMgrSession")
 
 
 class FesSession(orm.Session):
@@ -35,21 +35,144 @@ class FesSession(orm.Session):
     改造orm的session类使得能够自动提示query的所有方法
     """
 
-    def __init__(self, autocommit: bool = False, autoflush: bool = True,
+    def __init__(self, autocommit: bool = False, autoflush: bool = True, expire_on_commit=False,
                  query_cls: Type[FesQuery] = FesQuery, **options):
         """
             改造orm的session类使得能够自动提示query的所有方法
         Args:
 
         """
-        super().__init__(autocommit=autocommit, autoflush=autoflush, query_cls=query_cls, **options)
+        super().__init__(autocommit=autocommit, autoflush=autoflush, expire_on_commit=expire_on_commit,
+                         query_cls=query_cls, **options)
+        self.bind_key: str = ""
+        self.is_closed: bool = False  # session是否关闭
+        # noinspection PyTypeChecker
+        self.mgr_session: 'FesMgrSession' = None
 
     # noinspection PyTypeChecker
     def query(self, *entities, **kwargs) -> FesQuery:
         """Return a new :class:`.FesQuery` object corresponding to this
-        :class:`.Session`."""
+        :class:`.Session`.
+        返回新FesQuery的对象实例
+        """
 
-        return super().query(*entities, **kwargs)
+        return super().query(*entities, mgr_session=kwargs.get("mgr_session", self.mgr_session), **kwargs)
+
+    def close(self):
+        """Close this Session.
+
+        This clears all items and ends any transaction in progress.
+
+        If this session were created with ``autocommit=False``, a new
+        transaction is immediately begun.  Note that this new transaction does
+        not use any connection resources until they are first needed.
+
+        """
+        super().close()
+        self.is_closed = True
+
+
+class FesMgrSession(object):
+    """
+    单个session的工厂管理类
+    """
+
+    def __init__(self, scoped_session: orm.scoped_session, bind_key: Optional[str] = None):
+        """
+        单个session的工厂管理类
+        Args:
+
+        """
+        self._scoped_session: orm.scoped_session = scoped_session
+        self.bind_key: Optional[str] = bind_key
+
+    def sessfes(self, ) -> FesSession:
+        """
+        返回FesSession对象实例
+
+        主要用于多个FesQuery需要同一个session的情况，比如union查询
+        Args:
+        Returns:
+
+        """
+        sessfes: FesSession = self._scoped_session()
+        sessfes.bind_key = self.bind_key
+        sessfes.mgr_session = self
+        return sessfes
+
+    def query(self, *entities, **kwargs) -> FesQuery:
+        """Return a new :class:`.FesQuery` object corresponding to this
+        :class:`.Session`.
+        返回包含新FesSession对象实例的新FesQuery的对象实例
+        """
+
+        return self.sessfes().query(*entities, mgr_session=self, **kwargs)
+
+    def execute(self, query: Union[FesQuery, str], params: Dict[str, Any] = None) -> Optional[RowProxy]:
+        """
+        插入数据，更新或者删除数据
+        Args:
+            query: SQL的查询字符串或者sqlalchemy表达式
+            params: SQL表达式中的参数
+        Returns:
+            不确定执行的是什么查询，直接返回RowProxy实例
+        """
+        session: FesSession = self.sessfes()
+        cursor: Optional[ResultProxy] = None
+        try:
+            cursor = session.execute(query, params)
+            session.commit()
+        except IntegrityError as e:
+            session.rollback()
+            if "Duplicate" in str(e):
+                raise DBDuplicateKeyError(e)
+            else:
+                raise DBError(e)
+        except DatabaseError as e:
+            session.rollback()
+            aelog.exception(e)
+            raise DBError(e)
+        except Exception as e:
+            session.rollback()
+            aelog.exception(e)
+            raise HttpError(400, message=mysql_msg[2]["msg_zh"], error=e)
+        else:
+            return cursor.fetchone() if cursor.returns_rows else None
+        finally:
+            if cursor:
+                cursor.close()
+            session.close()
+
+    def query_execute(self, query: Union[FesQuery, str], params: Dict[str, Any] = None, size: int = None
+                      ) -> Union[List[RowProxy], RowProxy, None]:
+        """
+        查询数据
+        Args:
+            query: SQL的查询字符串或者sqlalchemy表达式
+            params: SQL表达式中的参数
+            size: 查询数据大小, 默认返回所有
+            # cursor_close: 是否关闭游标，默认关闭，如果多次读取可以改为false，后面关闭的行为交给sqlalchemy处理
+        Returns:
+            List[RowProxy] or RowProxy or None
+        """
+        params = dict(params) if isinstance(params, MutableMapping) else {}
+
+        session: FesSession = self.sessfes()
+        cursor: Optional[ResultProxy] = None
+        try:
+            cursor = session.execute(query, params)
+            if size is None:
+                resp = cursor.fetchall() if cursor.returns_rows else []
+            elif size == 1:
+                resp = cursor.fetchone() if cursor.returns_rows else None
+            else:
+                resp = cursor.fetchmany(size) if cursor.returns_rows else []
+        finally:
+            if cursor:
+                cursor.close()
+            session.close()
+
+        return resp
 
 
 class FastapiAlchemy(AlchemyMixIn, object):
@@ -132,6 +255,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         """
         self.session_options.setdefault("autoflush", self.kwargs.get("autoflush", True))
         self.session_options.setdefault("autocommit", self.kwargs.get("autocommit", False))
+        self.session_options.setdefault("expire_on_commit", self.kwargs.get("expire_on_commit", False))
 
     def _set_engine_opts(self, ):
         """
@@ -152,7 +276,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             "charset": self.charset, "binary_prefix": self.binary_prefix})
 
     @staticmethod
-    def apply_engine_opts(configs: Dict[str, Any], options: Dict[str, Any]):
+    def _apply_engine_opts(configs: Dict[str, Any], options: Dict[str, Any]):
         """
         应用从配置读取的引擎参数
         Args:
@@ -213,13 +337,13 @@ class FastapiAlchemy(AlchemyMixIn, object):
         self.db_uri = self.get_engine_url(dbname, username=username, password=passwd, host=host, port=port)
 
         # 应用配置
-        self.apply_engine_opts(config, self.engine_options)
+        self._apply_engine_opts(config, self.engine_options)
         self.fessql_binds = config.get("FESSQL_BINDS") or self.fessql_binds
         self.verify_binds()
 
         # engine
-        self.engine_pool[None] = self.create_engine(self.db_uri, self.engine_options)
-        self.sessionmaker_pool[None] = self.create_scoped_sessionmaker(self.engine_pool[None])
+        self.engine_pool[None] = self._create_engine(self.db_uri, self.engine_options)
+        self.sessionmaker_pool[None] = self._create_scoped_sessionmaker(self.engine_pool[None])
         # 注册停止事件
         app.on_event('shutdown')(self.close_connection)
 
@@ -247,13 +371,13 @@ class FastapiAlchemy(AlchemyMixIn, object):
         self.db_uri = self.get_engine_url(dbname, username=username, password=passwd, host=host, port=port)
 
         # 应用配置
-        self.apply_engine_opts(kwargs, self.engine_options)
+        self._apply_engine_opts(kwargs, self.engine_options)
         self.fessql_binds = kwargs.pop("fessql_binds", None) or self.fessql_binds
         self.verify_binds()
 
         # engine
-        self.engine_pool[None] = self.create_engine(self.db_uri, self.engine_options)
-        self.sessionmaker_pool[None] = self.create_scoped_sessionmaker(self.engine_pool[None])
+        self.engine_pool[None] = self._create_engine(self.db_uri, self.engine_options)
+        self.sessionmaker_pool[None] = self._create_scoped_sessionmaker(self.engine_pool[None])
         # 注册停止事件
         atexit.register(self.close_connection)
 
@@ -290,7 +414,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
             if not isinstance(self.app, FastAPI):
                 raise FuncArgsError("app type must be FastAPI.")
 
-    def create_scoped_sessionmaker(self, bind: Engine) -> orm.scoped_session:
+    def _create_scoped_sessionmaker(self, bind: Engine) -> orm.scoped_session:
         """Create a :class:`~sqlalchemy.orm.scoping.scoped_session`
         on the factory from :meth:`create_session`.
 
@@ -303,9 +427,9 @@ class FastapiAlchemy(AlchemyMixIn, object):
         :param bind: 引擎的bind
         """
 
-        return orm.scoped_session(self.create_sessionmaker(bind=bind))
+        return orm.scoped_session(self._create_sessionmaker(bind=bind))
 
-    def create_sessionmaker(self, bind: Engine) -> orm.sessionmaker:
+    def _create_sessionmaker(self, bind: Engine) -> orm.sessionmaker:
         """Create the session factory used by :meth:`create_scoped_session`.
 
         The factory **must** return an object that SQLAlchemy recognizes as a session,
@@ -322,7 +446,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         return orm.sessionmaker(bind=bind, class_=FesSession, **self.session_options)
 
     @staticmethod
-    def create_engine(sa_url: Union[str, URL], engine_opts: Dict[str, Any]) -> Engine:
+    def _create_engine(sa_url: Union[str, URL], engine_opts: Dict[str, Any]) -> Engine:
         """
             Override this method to have final say over how the SQLAlchemy engine
             is created.
@@ -332,7 +456,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         """
         return sqlalchemy.create_engine(sa_url, **engine_opts)
 
-    def _create_engine(self, bind_key: str):
+    def _create_engine2(self, bind_key: str):
         """
         session bind
         Args:
@@ -351,10 +475,10 @@ class FastapiAlchemy(AlchemyMixIn, object):
                                               port=bind_conf["fessql_mysql_port"])
             engine_options: Dict[str, Any] = {**self.engine_options}
             # 应用配置
-            self.apply_engine_opts(bind_conf, engine_options)
-            self.engine_pool[bind_key] = self.create_engine(db_uri, engine_options)
+            self._apply_engine_opts(bind_conf, engine_options)
+            self.engine_pool[bind_key] = self._create_engine(db_uri, engine_options)
 
-    def gen_sessionmaker(self, bind_key: str = None) -> orm.scoped_session:
+    def _gen_sessionmaker(self, bind_key: str = None) -> orm.scoped_session:
         """
         session bind
         Args:
@@ -363,8 +487,8 @@ class FastapiAlchemy(AlchemyMixIn, object):
 
         """
         if bind_key is not None and bind_key not in self.sessionmaker_pool:
-            self._create_engine(bind_key)
-            self.sessionmaker_pool[bind_key] = self.create_scoped_sessionmaker(self.engine_pool[bind_key])
+            self._create_engine2(bind_key)
+            self.sessionmaker_pool[bind_key] = self._create_scoped_sessionmaker(self.engine_pool[bind_key])
         return self.sessionmaker_pool[bind_key]
 
     def ping_session(self, session: FesSession, reconnect=True) -> FesSession:
@@ -383,8 +507,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
                 bind_key = getattr(session, "bind_key", Undefined)
                 if bind_key != Undefined:
                     self.sessionmaker_pool[bind_key].remove()
-                    session = self.gen_sessionmaker(bind_key)()
-                    session.bind_key = bind_key  # 设置bind key
+                    session = self.gen_session(bind_key).sessfes()
                 else:
                     raise FuncArgsError(f"session中缺少bind_key变量") from err
             else:
@@ -392,8 +515,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         # 返回重建后的session
         return session
 
-    @contextmanager
-    def gen_session(self, bind_key: Optional[str] = None) -> Generator[FesSession, None, None]:
+    def gen_session(self, bind_key: Optional[str] = None) -> FesMgrSession:
         """
         创建或者获取指定的session
 
@@ -404,149 +526,102 @@ class FastapiAlchemy(AlchemyMixIn, object):
 
         """
 
-        session: FesSession = self.gen_sessionmaker(bind_key)()
-        session.bind_key = bind_key  # 设置bind key
-        session = self.ping_session(session)  # 校验重连,保证可用
-        try:
-            yield session
-        finally:
-            session.close()
+        return FesMgrSession(self._gen_sessionmaker(bind_key), bind_key)
+
+    @property
+    def session(self, ) -> FesMgrSession:
+        """
+        默认的session
+
+        主要用于在一个视图内部针对同表不同库的数据请求获取
+        Args:
+
+        Returns:
+
+        """
+
+        return self.gen_session()
 
     @contextmanager
-    def insert_context(self, session: FesSession) -> Generator['FastapiAlchemy', None, None]:
+    def insert_context(self, session: FesMgrSession) -> Generator[FesSession, None, None]:
         """
         插入数据context
         Args:
-            session: session对象, 默认是self.session
+            session: FesMgrSession对象
         Returns:
 
         """
+        sessfes: FesSession = session.sessfes()
         try:
-            yield self
-            session.commit()
+            yield sessfes
+            sessfes.commit()
         except IntegrityError as e:
-            session.rollback()
+            sessfes.rollback()
             if "Duplicate" in str(e):
                 raise DBDuplicateKeyError(e)
             else:
                 raise DBError(e)
         except DatabaseError as e:
-            session.rollback()
+            sessfes.rollback()
             aelog.exception(e)
             raise DBError(e)
         except Exception as e:
-            session.rollback()
+            sessfes.rollback()
             aelog.exception(e)
             raise HttpError(400, message=mysql_msg[1]["msg_zh"], error=e)
+        finally:
+            sessfes.close()
 
     @contextmanager
-    def update_context(self, session: FesSession) -> Generator['FastapiAlchemy', None, None]:
+    def update_context(self, session: FesMgrSession) -> Generator[FesSession, None, None]:
         """
         更新数据context
         Args:
-            session: session对象, 默认是self.session
+            session: FesMgrSession对象
         Returns:
 
         """
+        sessfes: FesSession = session.sessfes()
         try:
-            yield self
-            session.commit()
+            yield sessfes
+            sessfes.commit()
         except IntegrityError as e:
-            session.rollback()
+            sessfes.rollback()
             if "Duplicate" in str(e):
                 raise DBDuplicateKeyError(e)
             else:
                 raise DBError(e)
         except DatabaseError as e:
-            session.rollback()
+            sessfes.rollback()
             aelog.exception(e)
             raise DBError(e)
         except Exception as e:
-            session.rollback()
+            sessfes.rollback()
             aelog.exception(e)
             raise HttpError(400, message=mysql_msg[2]["msg_zh"], error=e)
+        finally:
+            sessfes.close()
 
     @contextmanager
-    def delete_context(self, session: FesSession) -> Generator['FastapiAlchemy', None, None]:
+    def delete_context(self, session: FesMgrSession) -> Generator[FesSession, None, None]:
         """
         删除数据context
         Args:
-            session: session对象, 默认是self.session
+            session: FesMgrSession对象
         Returns:
 
         """
+        sessfes: FesSession = session.sessfes()
         try:
-            yield self
-            session.commit()
+            yield sessfes
+            sessfes.commit()
         except DatabaseError as e:
-            session.rollback()
+            sessfes.rollback()
             aelog.exception(e)
             raise DBError(e)
         except Exception as e:
-            session.rollback()
+            sessfes.rollback()
             aelog.exception(e)
             raise HttpError(400, message=mysql_msg[3]["msg_zh"], error=e)
-
-    @staticmethod
-    def execute(session: FesSession, query: Union[FesQuery, str], params: Dict = None) -> Optional[RowProxy]:
-        """
-        插入数据，更新或者删除数据
-        Args:
-            query: SQL的查询字符串或者sqlalchemy表达式
-            params: SQL表达式中的参数
-            session: session对象, 默认是self.session
-        Returns:
-            不确定执行的是什么查询，直接返回RowProxy实例
-        """
-        cursor: Optional[ResultProxy] = None
-        try:
-            cursor = session.execute(query, params)
-            session.commit()
-        except IntegrityError as e:
-            session.rollback()
-            if "Duplicate" in str(e):
-                raise DBDuplicateKeyError(e)
-            else:
-                raise DBError(e)
-        except DatabaseError as e:
-            session.rollback()
-            aelog.exception(e)
-            raise DBError(e)
-        except Exception as e:
-            session.rollback()
-            aelog.exception(e)
-            raise HttpError(400, message=mysql_msg[2]["msg_zh"], error=e)
-        else:
-            return cursor.fetchone() if cursor.returns_rows else None
         finally:
-            if cursor:
-                cursor.close()
-
-    # noinspection DuplicatedCode
-    @staticmethod
-    def query_execute(session: FesSession, query: Union[FesQuery, str], params: Dict = None, size: int = None,
-                      cursor_close: bool = True) -> Union[List[RowProxy], RowProxy, None]:
-        """
-        查询数据
-        Args:
-            query: SQL的查询字符串或者sqlalchemy表达式
-            params: SQL表达式中的参数
-            session: session对象, 默认是self.session
-            size: 查询数据大小, 默认返回所有
-            cursor_close: 是否关闭游标，默认关闭，如果多次读取可以改为false，后面关闭的行为交给sqlalchemy处理
-        Returns:
-            List[RowProxy] or RowProxy or None
-        """
-        params = dict(params) if isinstance(params, MutableMapping) else {}
-        cursor: ResultProxy = session.execute(query, params)
-        if size is None:
-            resp = cursor.fetchall() if cursor.returns_rows else []
-        elif size == 1:
-            resp = cursor.fetchone() if cursor.returns_rows else None
-        else:
-            resp = cursor.fetchmany(size) if cursor.returns_rows else []
-
-        if cursor_close is True:
-            cursor.close()
-
-        return resp
+            sessfes.close()

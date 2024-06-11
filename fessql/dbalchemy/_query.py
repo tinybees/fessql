@@ -6,11 +6,11 @@
 @software: PyCharm
 @time: 2021/3/19 下午6:50
 """
+from contextlib import contextmanager
 from math import ceil
-from typing import List
+from typing import Generator, List
 
 from sqlalchemy import orm
-# noinspection PyProtectedMember
 from sqlalchemy.engine.result import RowProxy
 from sqlalchemy.sql.schema import Table
 
@@ -91,48 +91,37 @@ class FesPagination(object):
             return None
         return self.page + 1
 
-    def iter_pages(self, left_edge=2, left_current=2,
-                   right_current=5, right_edge=2):
-        """Iterates over the page numbers in the pagination.  The four
-        parameters control the thresholds how many numbers should be produced
-        from the sides.  Skipped page numbers are represented as `None`.
-        This is how you could render such a pagination in the templates:
-
-        .. sourcecode:: html+jinja
-
-            {% macro render_pagination(pagination, endpoint) %}
-              <div class=pagination>
-              {%- for page in pagination.iter_pages() %}
-                {% if page %}
-                  {% if page != pagination.page %}
-                    <a href="{{ url_for(endpoint, page=page) }}">{{ page }}</a>
-                  {% else %}
-                    <strong>{{ page }}</strong>
-                  {% endif %}
-                {% else %}
-                  <span class=ellipsis>…</span>
-                {% endif %}
-              {%- endfor %}
-              </div>
-            {% endmacro %}
-        """
-        last = 0
-        for num in range(1, self.pages + 1):
-            if (num <= left_edge
-                    or (self.page - left_current - 1 < num < self.page + right_current)
-                    or num > self.pages - right_edge):
-                if last + 1 != num:
-                    yield None
-                yield num
-                last = num
-
 
 class FesQuery(orm.Query):
     """
     改造Query,使得符合业务中使用
-
-    目前是改造如果limit传递为0，则返回所有的数据，这样业务代码中就不用更改了
     """
+
+    def __init__(self, entities, sessfes=None, mgr_session=None):
+        """Construct a :class:`_query.Query` directly.
+
+        E.g.::
+
+            q = Query([User, Address], session=some_session)
+
+        The above is equivalent to::
+
+            q = some_session.query(User, Address)
+
+        :param entities: a sequence of entities and/or SQL expressions.
+
+        :param sessfes: a :class:`.Session` with which the
+         :class:`_query.Query`
+         will be associated.   Optional; a :class:`_query.Query`
+         can be associated
+         with a :class:`.Session` generatively via the
+         :meth:`_query.Query.with_session` method as well.
+
+         :param mgr_session: a instance of FesMgrSession object.
+        """
+        super().__init__(entities, sessfes)
+        self.mgr_session = mgr_session
+        self.other_sessions: List = []  # 包含其他FesQuery的中的session,只要用于union等的操作
 
     # noinspection DuplicatedCode
     def paginate(self, page: int = 1, per_page: int = 20, primary_order: bool = True) -> FesPagination:
@@ -179,19 +168,23 @@ class FesQuery(orm.Query):
 
                 if isinstance(select_model, Table) and getattr(select_model.columns, "id", None) is not None:
                     self._order_by = [select_model.columns.id.asc()]
-
-        # 如果per_page为0,则证明要获取所有的数据，否则还是通常的逻辑
+        # 判断是否关闭,关闭后赋予新的session
+        if self.session.is_closed:
+            self.with_session(self.mgr_session.sessfes())
+        # 如果per_page为0,则证明要获取所有的数据,这里最大返回1000条数据，否则还是通常的逻辑
         if per_page != 0:
-            items = self.limit(per_page).offset((page - 1) * per_page).all()
+            items = self.limit(per_page).offset((page - 1) * per_page).all(False)
         else:
-            items = self.all()
+            items = self.limit(1000).all(False)
 
         # No need to count if we're on the first page and there are fewer
         # items than we expected.
         if page == 1 and len(items) < per_page:
             total = len(items)
         else:
-            total = self.order_by(None).count()
+            total = self.order_by(None).count(False)
+        # 查询完后,关闭session
+        self.session.close()
 
         return FesPagination(self, page, per_page, total, items)
 
@@ -259,36 +252,42 @@ class FesQuery(orm.Query):
         """
         继承父类便于自动提示提示
         """
+        self.other_sessions.extend([one_q.session for one_q in q if getattr(one_q, "session", None)])
         return super().union(*q)
 
     def union_all(self, *q) -> 'FesQuery':
         """
         继承父类便于自动提示提示
         """
+        self.other_sessions.extend([one_q.session for one_q in q if getattr(one_q, "session", None)])
         return super().union_all(*q)
 
     def intersect(self, *q) -> 'FesQuery':
         """
         继承父类便于自动提示提示
         """
+        self.other_sessions.extend([one_q.session for one_q in q if getattr(one_q, "session", None)])
         return super().intersect(*q)
 
     def intersect_all(self, *q) -> 'FesQuery':
         """
         继承父类便于自动提示提示
         """
+        self.other_sessions.extend([one_q.session for one_q in q if getattr(one_q, "session", None)])
         return super().intersect_all(*q)
 
     def except_(self, *q) -> 'FesQuery':
         """
         继承父类便于自动提示提示
         """
+        self.other_sessions.extend([one_q.session for one_q in q if getattr(one_q, "session", None)])
         return super().except_(*q)
 
     def except_all(self, *q) -> 'FesQuery':
         """
         继承父类便于自动提示提示
         """
+        self.other_sessions.extend([one_q.session for one_q in q if getattr(one_q, "session", None)])
         return super().except_all(*q)
 
     def distinct(self, *expr) -> 'FesQuery':
@@ -362,3 +361,83 @@ class FesQuery(orm.Query):
         继承父类便于自动提示提示
         """
         return super().add_entity(entity, alias)
+
+    @contextmanager
+    def close_session(self, is_closed: bool = True) -> Generator[None, None, None]:
+        """
+        查询完成后关闭FesQuery中的FesSession
+
+        Args:
+            is_closed: 是否关闭,默认true
+        Returns:
+
+        """
+        try:
+            yield
+        finally:
+            if is_closed:
+                self.session.close()
+                for other_session in self.other_sessions:
+                    other_session.close()
+
+    def first(self, is_closed: bool = True):
+        """Return the first result of this ``Query`` or
+        None if the result doesn't contain any row.
+
+        first() applies a limit of one within the generated SQL, so that
+        only one primary entity row is generated on the server side
+        (note this may consist of multiple result rows if join-loaded
+        collections are present).
+
+        Calling :meth:`_query.Query.first`
+        results in an execution of the underlying
+        query.
+
+        """
+        self.limit(1)
+        with self.close_session(is_closed):
+            return super().first()
+
+    def all(self, is_closed: bool = True):
+        """Return the results represented by this :class:`_query.Query`
+        as a list.
+
+        This results in an execution of the underlying SQL statement.
+        """
+        with self.close_session(is_closed):
+            return super().all()
+
+    def count(self, is_closed: bool = True):
+        """Return a count of rows this the SQL formed by this :class:`Query`
+        would return.
+
+        This generates the SQL for this Query as follows::
+
+            SELECT count(1) AS count_1 FROM (
+                SELECT <rest of query follows...>
+            ) AS anon_1 """
+
+        with self.close_session(is_closed):
+            return super().count()
+
+    def scalar(self, is_closed: bool = True):
+        """Return the first element of the first result or None
+        if no rows present.  If multiple rows are returned,
+        raises MultipleResultsFound.
+
+          >> session.query(Item).scalar()
+          <Item>
+          >> session.query(Item.id).scalar()
+          1
+          >> session.query(Item.id).filter(Item.id < 0).scalar()
+          None
+          >> session.query(Item.id, Item.name).scalar()
+          1
+          >> session.query(func.count(Parent.id)).scalar()
+          20
+
+        This results in an execution of the underlying query.
+
+        """
+        with self.close_session(is_closed):
+            return super().scalar()
