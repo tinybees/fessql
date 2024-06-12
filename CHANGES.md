@@ -1,6 +1,6 @@
 ## fessql Changelog
 
-###[1.1.0] - 2024-06-11
+###[1.1.0] - 2024-06-12
 
 
 #### Added
@@ -8,6 +8,7 @@
 防止数据库出现大量sleep连接,以及时不时出现的数据库连接关闭丢失的问题
 - 新增FesMgrSession类用于管理FesSession类,类中包含有必要的方法,这样可以即时回收FesSession实例，而当前实例永不过期
 - 优化session及query的使用逻辑，现在查询数据或者分页数据后(如first,all,paginate)会立即关闭session到连接池
+- 优化重构flask部分逻辑和通用逻辑抛弃flask-sqlalchemy使用和fastapi一样的中间件查询规范，flask-sqlalchemy中大量功能用不到也影响性能 
 
 #### Changed 
 - 更改paginate分页的默认分页行为如果传limit=0则最大只返回1000条数据,防止数据过多卡死

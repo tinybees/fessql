@@ -20,7 +20,6 @@ from .utils import gen_class_name
 __all__ = ("AlchemyMixIn",)
 
 
-# noinspection PyUnresolvedReferences
 class AlchemyMixIn(object):
     """
     base alchemy
@@ -28,6 +27,7 @@ class AlchemyMixIn(object):
 
     Model: ClassVar[DeclarativeMeta] = declarative_base()
 
+    # noinspection PyUnresolvedReferences
     def verify_binds(self, ):
         """
         校验fessql_binds

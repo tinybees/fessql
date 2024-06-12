@@ -4,7 +4,9 @@
 """
 @author: guoyanfeng
 @software: PyCharm
-@time: 2020/11/10 下午4:14
+@time: 2024/6/11 下午6:52
+
+
 """
 import atexit
 from collections import MutableMapping
@@ -27,7 +29,7 @@ from .._err_msg import mysql_msg
 from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
 from ..utils import Undefined
 
-__all__ = ("FesSession", "FastapiAlchemy", "FesMgrSession")
+__all__ = ("FesSession", "FesMgrSession", "DBAlchemy")
 
 
 class FesSession(orm.Session):
@@ -175,9 +177,9 @@ class FesMgrSession(object):
         return resp
 
 
-class FastapiAlchemy(AlchemyMixIn, object):
+class DBAlchemy(AlchemyMixIn, object):
     """
-    DB同步操作指南，适用于fastapi
+    DB同步操作指南,基于SQlalchemy
     """
 
     def __init__(self, app=None, *, username: str = "root", passwd: str = None,
@@ -186,7 +188,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
                  query_class: Type[FesQuery] = FesQuery, session_options: Dict[str, Any] = None,
                  engine_options: Dict[str, Any] = None, **kwargs):
         """
-        DB同步操作指南，适用于fastapi
+        DB同步操作指南,基于SQlalchemy
         Args:
             app: app应用
             username: mysql user
@@ -324,10 +326,17 @@ class FastapiAlchemy(AlchemyMixIn, object):
         Returns:
 
         """
-        self.app = app
-        config: Dict = app.config if getattr(app, "config", None) else app.state.config
+        raise NotImplementedError
 
-        self._verify_fastapi_app()  # 校验APP类型是否正确
+    # noinspection DuplicatedCode
+    def _init_app(self, config: Dict[str, Any]):
+        """
+        初始化APP
+        Args:
+            config: APP的配置信息
+        Returns:
+
+        """
         username = config.get("FESSQL_MYSQL_USERNAME") or self.username
         passwd = config.get("FESSQL_MYSQL_PASSWD") or self.passwd
         passwd = passwd if passwd is None else str(passwd)
@@ -344,8 +353,6 @@ class FastapiAlchemy(AlchemyMixIn, object):
         # engine
         self.engine_pool[None] = self._create_engine(self.db_uri, self.engine_options)
         self.sessionmaker_pool[None] = self._create_scoped_sessionmaker(self.engine_pool[None])
-        # 注册停止事件
-        app.on_event('shutdown')(self.close_connection)
 
     # noinspection DuplicatedCode
     def init_engine(self, *, username: str = "root", passwd: str = None,
@@ -395,25 +402,6 @@ class FastapiAlchemy(AlchemyMixIn, object):
             engine_.dispose()
         aelog.debug("清理所有数据库连接池完毕！")
 
-    def _verify_fastapi_app(self, ):
-        """
-        校验APP类型是否正确
-
-        暂时只支持fastapi框架
-        Args:
-
-        Returns:
-
-        """
-
-        try:
-            from fastapi import FastAPI
-        except ImportError as e:
-            raise ImportError(f"FastAPI import error {e}.")
-        else:
-            if not isinstance(self.app, FastAPI):
-                raise FuncArgsError("app type must be FastAPI.")
-
     def _create_scoped_sessionmaker(self, bind: Engine) -> orm.scoped_session:
         """Create a :class:`~sqlalchemy.orm.scoping.scoped_session`
         on the factory from :meth:`create_session`.
@@ -456,7 +444,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
         """
         return sqlalchemy.create_engine(sa_url, **engine_opts)
 
-    def _create_engine2(self, bind_key: str):
+    def _create_pool_engine(self, bind_key: str):
         """
         session bind
         Args:
@@ -487,7 +475,7 @@ class FastapiAlchemy(AlchemyMixIn, object):
 
         """
         if bind_key is not None and bind_key not in self.sessionmaker_pool:
-            self._create_engine2(bind_key)
+            self._create_pool_engine(bind_key)
             self.sessionmaker_pool[bind_key] = self._create_scoped_sessionmaker(self.engine_pool[bind_key])
         return self.sessionmaker_pool[bind_key]
 
@@ -542,8 +530,9 @@ class FastapiAlchemy(AlchemyMixIn, object):
 
         return self.gen_session()
 
+    @staticmethod
     @contextmanager
-    def insert_context(self, session: FesMgrSession) -> Generator[FesSession, None, None]:
+    def insert_context(session: FesMgrSession) -> Generator[FesSession, None, None]:
         """
         插入数据context
         Args:
@@ -572,8 +561,9 @@ class FastapiAlchemy(AlchemyMixIn, object):
         finally:
             sessfes.close()
 
+    @staticmethod
     @contextmanager
-    def update_context(self, session: FesMgrSession) -> Generator[FesSession, None, None]:
+    def update_context(session: FesMgrSession) -> Generator[FesSession, None, None]:
         """
         更新数据context
         Args:
@@ -602,8 +592,9 @@ class FastapiAlchemy(AlchemyMixIn, object):
         finally:
             sessfes.close()
 
+    @staticmethod
     @contextmanager
-    def delete_context(self, session: FesMgrSession) -> Generator[FesSession, None, None]:
+    def delete_context(session: FesMgrSession) -> Generator[FesSession, None, None]:
         """
         删除数据context
         Args:
