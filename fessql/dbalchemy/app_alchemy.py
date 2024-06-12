@@ -6,9 +6,8 @@
 @software: PyCharm
 @time: 2020/11/10 下午4:14
 """
-from typing import Any, Dict, Type
+from typing import Any, Dict
 
-from ._query import FesQuery
 from .dbalchemy import DBAlchemy
 from .drivers import DialectDriver
 from ..err import FuncArgsError
@@ -24,8 +23,7 @@ class FastapiAlchemy(DBAlchemy):
     def __init__(self, app=None, *, username: str = "root", passwd: str = None,
                  host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
                  dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
-                 query_class: Type[FesQuery] = FesQuery, session_options: Dict[str, Any] = None,
-                 engine_options: Dict[str, Any] = None, **kwargs):
+                 session_options: Dict[str, Any] = None, engine_options: Dict[str, Any] = None, **kwargs):
         """
         DB同步操作指南，适用于fastapi,基于SQlalchemy
         Args:
@@ -37,7 +35,6 @@ class FastapiAlchemy(DBAlchemy):
             dbname: database name
             dialect: sqlalchemy默认的Dialect驱动
             fessql_binds: fesql binds
-            query_class: 查询类,orm.Query的子类
             session_options: 创建session的关键字参数
             engine_options: 创建engine的关键字参数
 
@@ -58,8 +55,8 @@ class FastapiAlchemy(DBAlchemy):
                                                     "fessql_mysql_passwd":"",
                                                     "fessql_mysql_dbname":"dbname"}}
         """
-        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname, dialect=dialect,
-                         fessql_binds=fessql_binds, query_class=query_class, session_options=session_options,
+        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname,
+                         dialect=dialect, fessql_binds=fessql_binds, session_options=session_options,
                          engine_options=engine_options, **kwargs)
 
     def init_app(self, app):
@@ -106,8 +103,7 @@ class FlaskAlchemy(DBAlchemy):
     def __init__(self, app=None, *, username: str = "root", passwd: str = None,
                  host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
                  dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
-                 query_class: Type[FesQuery] = FesQuery, session_options: Dict[str, Any] = None,
-                 engine_options: Dict[str, Any] = None, **kwargs):
+                 session_options: Dict[str, Any] = None, engine_options: Dict[str, Any] = None, **kwargs):
         """
         DB同步操作指南，适用于Flask,基于SQlalchemy
         Args:
@@ -119,7 +115,6 @@ class FlaskAlchemy(DBAlchemy):
             dbname: database name
             dialect: sqlalchemy默认的Dialect驱动
             fessql_binds: fesql binds
-            query_class: 查询类,orm.Query的子类
             session_options: 创建session的关键字参数
             engine_options: 创建engine的关键字参数
 
@@ -140,8 +135,8 @@ class FlaskAlchemy(DBAlchemy):
                                                     "fessql_mysql_passwd":"",
                                                     "fessql_mysql_dbname":"dbname"}}
         """
-        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname, dialect=dialect,
-                         fessql_binds=fessql_binds, query_class=query_class, session_options=session_options,
+        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname,
+                         dialect=dialect, fessql_binds=fessql_binds, session_options=session_options,
                          engine_options=engine_options, **kwargs)
 
     def init_app(self, app):
