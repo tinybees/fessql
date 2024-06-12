@@ -1,2 +1,7 @@
+recursive-include fessql *.pyi
+recursive-include fessql/dbalchemy *.pyi
+recursive-include fessql/aioalchemy *.pyi
+
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
+
