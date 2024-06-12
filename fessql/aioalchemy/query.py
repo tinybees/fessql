@@ -512,10 +512,12 @@ class Query(BaseQuery):
                 self.order_by(getattr(self._model, "id").asc())
 
         try:
-            # 如果per_page为0,则证明要获取所有的数据，否则还是通常的逻辑
+            # 如果per_page为0,则证明要获取所有的数据,这里最大返回1000条数据，否则还是通常的逻辑
             if per_page != 0:
                 self._limit_clause = per_page
                 self._offset_clause = (page - 1) * per_page
+            else:
+                self._limit_clause = 1000
 
             self.select_query()  # 生成select SQL
             self.select_query(is_count=True)  # 生成select count SQL
