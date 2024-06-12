@@ -233,7 +233,7 @@ class DBAlchemy(AlchemyMixIn, object):
         self.host: str = host
         self.port: int = port
         self.dbname: Optional[str] = dbname
-        self.db_uri: str = ""
+        self.db_uri: URL = URL("")
         # session and engine
         self.kwargs: Dict[str, Any] = kwargs
         self.session_options: Dict[str, Any] = session_options or {}
