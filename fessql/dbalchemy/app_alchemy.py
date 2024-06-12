@@ -6,9 +6,11 @@
 @software: PyCharm
 @time: 2020/11/10 下午4:14
 """
-from typing import Any, Dict
+from typing import Any, Dict, Type
 
+from ._query import FesQuery
 from .dbalchemy import DBAlchemy
+from .drivers import DialectDriver
 from ..err import FuncArgsError
 
 __all__ = ("FastapiAlchemy", "FlaskAlchemy")
@@ -18,6 +20,47 @@ class FastapiAlchemy(DBAlchemy):
     """
     DB同步操作指南，适用于fastapi
     """
+
+    def __init__(self, app=None, *, username: str = "root", passwd: str = None,
+                 host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
+                 dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
+                 query_class: Type[FesQuery] = FesQuery, session_options: Dict[str, Any] = None,
+                 engine_options: Dict[str, Any] = None, **kwargs):
+        """
+        DB同步操作指南，适用于fastapi,基于SQlalchemy
+        Args:
+            app: app应用
+            username: mysql user
+            passwd: mysql password
+            host:mysql host
+            port:mysql port
+            dbname: database name
+            dialect: sqlalchemy默认的Dialect驱动
+            fessql_binds: fesql binds
+            query_class: 查询类,orm.Query的子类
+            session_options: 创建session的关键字参数
+            engine_options: 创建engine的关键字参数
+
+            autoflush: 是否自动flush,默认True
+            autocommit: 是否自动commit,默认false
+
+            pool_size: mysql pool size
+            pool_recycle: pool recycle time, type int
+            pool_timeout: 连接池超时时间,默认60秒
+            pool_use_lifo: 是否后进先出,默认True
+            max_overflow: 最大溢出连接数,默认10
+            echo: 是否显示sqlalchemy的日志,默认false
+            connect_args: 实际建立连接的连接参数,connect_timeout: 连接超时时间，默认60秒
+
+            fessql_binds: binds config, eg:{"first":{"fessql_mysql_host":"127.0.0.1",
+                                                    "fessql_mysql_port":3306,
+                                                    "fessql_mysql_username":"root",
+                                                    "fessql_mysql_passwd":"",
+                                                    "fessql_mysql_dbname":"dbname"}}
+        """
+        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname, dialect=dialect,
+                         fessql_binds=fessql_binds, query_class=query_class, session_options=session_options,
+                         engine_options=engine_options, **kwargs)
 
     def init_app(self, app):
         """
@@ -57,8 +100,49 @@ class FastapiAlchemy(DBAlchemy):
 
 class FlaskAlchemy(DBAlchemy):
     """
-    Flask同步操作指南
+    DB同步操作指南，适用于Flask
     """
+
+    def __init__(self, app=None, *, username: str = "root", passwd: str = None,
+                 host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
+                 dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
+                 query_class: Type[FesQuery] = FesQuery, session_options: Dict[str, Any] = None,
+                 engine_options: Dict[str, Any] = None, **kwargs):
+        """
+        DB同步操作指南，适用于Flask,基于SQlalchemy
+        Args:
+            app: app应用
+            username: mysql user
+            passwd: mysql password
+            host:mysql host
+            port:mysql port
+            dbname: database name
+            dialect: sqlalchemy默认的Dialect驱动
+            fessql_binds: fesql binds
+            query_class: 查询类,orm.Query的子类
+            session_options: 创建session的关键字参数
+            engine_options: 创建engine的关键字参数
+
+            autoflush: 是否自动flush,默认True
+            autocommit: 是否自动commit,默认false
+
+            pool_size: mysql pool size
+            pool_recycle: pool recycle time, type int
+            pool_timeout: 连接池超时时间,默认60秒
+            pool_use_lifo: 是否后进先出,默认True
+            max_overflow: 最大溢出连接数,默认10
+            echo: 是否显示sqlalchemy的日志,默认false
+            connect_args: 实际建立连接的连接参数,connect_timeout: 连接超时时间，默认60秒
+
+            fessql_binds: binds config, eg:{"first":{"fessql_mysql_host":"127.0.0.1",
+                                                    "fessql_mysql_port":3306,
+                                                    "fessql_mysql_username":"root",
+                                                    "fessql_mysql_passwd":"",
+                                                    "fessql_mysql_dbname":"dbname"}}
+        """
+        super().__init__(app, username=username, passwd=passwd, host=host, port=port, dbname=dbname, dialect=dialect,
+                         fessql_binds=fessql_binds, query_class=query_class, session_options=session_options,
+                         engine_options=engine_options, **kwargs)
 
     def init_app(self, app):
         """
