@@ -6,11 +6,12 @@
 @software: PyCharm
 @time: 19-4-2 上午9:04
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import aelog
 import pymysql
 from pymysql.connections import Connection
+from pymysql.cursors import DictCursor
 
 __all__ = ("TinyMysql",)
 
@@ -25,7 +26,7 @@ class TinyMysql(object):
     """
 
     def __init__(self, db_user: str, db_pwd: str, db_host: str = "127.0.0.1", db_port: int = 3306,
-                 db_name: str = None):
+                 db_name: Optional[str] = None):
         """
             pymysql 操作数据库的各种方法
         Args:
@@ -59,7 +60,7 @@ class TinyMysql(object):
 
         def _get_connection() -> Connection:
             return pymysql.connect(host=self.db_host, port=self.db_port, db=self.db_name, user=self.db_user,
-                                   passwd=self.db_pwd, charset="utf8mb4", cursorclass=pymysql.cursors.DictCursor)
+                                   passwd=self.db_pwd, charset="utf8mb4", cursorclass=DictCursor)
 
         if self._conn is None:
             self._conn = _get_connection()
@@ -81,12 +82,13 @@ class TinyMysql(object):
         """
         self.conn.close()
 
-    def execute_many(self, sql: str, args_data: List[Tuple]) -> int:
+    def execute_many(self, sql: str, args_data: Union[List[Tuple], List[Dict[str, Any]]]) -> int:
         """
             批量插入数据
         Args:
             sql: 插入的SQL语句
-            args_data: 批量插入的数据，为一个包含元祖的列表
+            args_data: 批量插入的数据，为一个包含元祖的列表,
+            Sequence of sequences or mappings.  It is used as parameter.
 
             If args is a list or tuple, %s can be used as a placeholder in the query.
             If args is a dict, %(name)s can be used as a placeholder in the query.
@@ -101,7 +103,7 @@ class TinyMysql(object):
         count: int = 0
         try:
             with self.conn.cursor() as cursor:
-                count = cursor.executemany(sql, args_data)  # type: ignore
+                count = cursor.executemany(sql, args_data)
         except pymysql.Error as e:
             self.conn.rollback()
             aelog.exception(e)
@@ -112,7 +114,7 @@ class TinyMysql(object):
             self.conn.commit()
         return count
 
-    def execute(self, sql: str, args_data: Tuple = None) -> int:
+    def execute(self, sql: str, args_data: Optional[Union[Tuple, List, Dict[str, Any]]] = None) -> int:
         """
             执行单条记录，更新、插入或者删除
         Args:
@@ -141,7 +143,7 @@ class TinyMysql(object):
             self.conn.commit()
         return count
 
-    def find_one(self, sql: str, args: Tuple = None) -> Optional[Dict]:
+    def find_one(self, sql: str, args: Optional[Union[Tuple, List, Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
         """
             查询单条记录
         Args:
@@ -158,9 +160,10 @@ class TinyMysql(object):
             aelog.exception(e)
             return None
         else:
-            return cursor.fetchone()  # type: ignore
+            return cursor.fetchone()
 
-    def find_data(self, sql: str, args: Tuple = None, size: int = None) -> List[Dict]:
+    def find_data(self, sql: str, args: Optional[Union[Tuple, List, Dict[str, Any]]] = None,
+                  size: Optional[int] = None) -> Tuple[Dict[str, Any], ...]:
         """
             查询指定行数的数据
         Args:
@@ -176,6 +179,7 @@ class TinyMysql(object):
                 cursor.execute(sql, args)
         except pymysql.Error as e:
             aelog.exception(e)
-            return []
+            return ()
         else:
-            return cursor.fetchall() if not size else cursor.fetchmany(size)  # type: ignore
+            # noinspection PyTypeChecker
+            return cursor.fetchall() if not size else cursor.fetchmany(size)

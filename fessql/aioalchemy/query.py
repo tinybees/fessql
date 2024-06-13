@@ -7,7 +7,7 @@
 @time: 2020/3/1 上午12:00
 """
 
-from typing import (Dict, List, MutableMapping, Optional, Union)
+from typing import Any, Dict, List, MutableMapping, Optional, Union
 
 import aelog
 from aiomysql.sa import exc
@@ -20,8 +20,9 @@ from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql import (Delete, Insert, Select, Update, delete, func, insert, select, update)
 from sqlalchemy.sql.dml import UpdateBase
+from sqlalchemy.sql.elements import BinaryExpression
 
-from ..err import FuncArgsError, QueryArgsError
+from fessql.err import FuncArgsError, QueryArgsError
 
 __all__ = ("Query",)
 
@@ -31,23 +32,23 @@ class BaseQuery(object):
     查询
     """
 
-    def __init__(self, ):
+    def __init__(self, ) -> None:
         """
             查询
         Args:
 
         """
         self._model: Optional[DeclarativeMeta] = None
-        self._whereclause: List = []
-        self._order_by: List = []
-        self._group_by: List = []
-        self._having: List = []
-        self._distinct: List = []
-        self._columns: List = []
-        self._union: List = []
-        self._union_all: List = []
-        self._with_hint: List = []
-        self._bind_values: List = []
+        self._whereclause: List[BinaryExpression] = []
+        self._order_by: List[BinaryExpression] = []
+        self._group_by: List[BinaryExpression] = []
+        self._having: List[BinaryExpression] = []
+        self._distinct: List[InstrumentedAttribute] = []
+        self._columns: List[InstrumentedAttribute] = []
+        self._union: List[Any] = []
+        self._union_all: List[Any] = []
+        self._with_hint: List[Any] = []
+        self._bind_values: List[Any] = []
         # limit, offset
         self._limit_clause: Optional[int] = None
         self._offset_clause: Optional[int] = None
@@ -203,7 +204,7 @@ class Query(BaseQuery):
     查询
     """
 
-    def __init__(self, ):
+    def __init__(self, ) -> None:
         """
 
         Args:
@@ -212,8 +213,8 @@ class Query(BaseQuery):
 
         """
         # data
-        self._insert_data: Union[List[Dict], Dict] = {}
-        self._update_data: Union[List[Dict], Dict] = {}
+        self._insert_data: Union[List[Dict[str, Any]], Dict[str, Any]] = {}
+        self._update_data: Union[List[Dict[str, Any]], Dict[str, Any]] = {}
         # query
         self._query_obj: Optional[Union[Select, Insert, Update, Delete]] = None
         self._query_count_obj: Optional[Select] = None  # 查询数量select

@@ -121,7 +121,7 @@ class FesQuery(orm.Query):
         """
         super().__init__(entities, sessfes)
         self.mgr_session = mgr_session
-        self.other_sessions: List = []  # 包含其他FesQuery的中的session,只要用于union等的操作
+        self.other_sessions = []  # 包含其他FesQuery的中的session,只要用于union等的操作
 
     # noinspection DuplicatedCode
     def paginate(self, page: int = 1, per_page: int = 20, primary_order: bool = True) -> FesPagination:

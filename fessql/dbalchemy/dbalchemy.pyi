@@ -9,7 +9,7 @@
 
 """
 from contextlib import contextmanager
-from typing import Any, ClassVar, Dict, Generator, List, Optional, Sequence, Type, Union
+from typing import Any, ClassVar, ContextManager, Dict, List, Optional, Sequence, Type, Union
 
 from sqlalchemy import orm
 # noinspection PyProtectedMember
@@ -138,15 +138,15 @@ class DBAlchemy(AlchemyMixIn, object):
 
     @staticmethod
     @contextmanager
-    def insert_context(session: FesMgrSession) -> Generator[FesSession, None, None]: ...
+    def insert_context(session: FesMgrSession) -> ContextManager[FesSession]: ...
 
     @staticmethod
     @contextmanager
-    def update_context(session: FesMgrSession) -> Generator[FesSession, None, None]: ...
+    def update_context(session: FesMgrSession) -> ContextManager[FesSession]: ...
 
     @staticmethod
     @contextmanager
-    def delete_context(session: FesMgrSession) -> Generator[FesSession, None, None]: ...
+    def delete_context(session: FesMgrSession) -> ContextManager[FesSession]: ...
 
     def verify_binds(self, ): ...
 

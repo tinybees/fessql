@@ -4,4 +4,3 @@ recursive-include fessql/aioalchemy *.pyi
 
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
-

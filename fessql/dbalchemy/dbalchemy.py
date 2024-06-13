@@ -22,12 +22,11 @@ from sqlalchemy.engine.result import ResultProxy, RowProxy
 from sqlalchemy.engine.url import URL
 from sqlalchemy.exc import DatabaseError, IntegrityError
 
+from fessql._alchemy import AlchemyMixIn
+from fessql._err_msg import mysql_msg
+from fessql.err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
 from ._query import FesQuery
 from .drivers import DialectDriver
-from .._alchemy import AlchemyMixIn
-from .._err_msg import mysql_msg
-from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
-from ..utils import Undefined
 
 __all__ = ("FesSession", "FesMgrSession", "DBAlchemy")
 
@@ -46,10 +45,10 @@ class FesSession(orm.Session):
         """
         super().__init__(autocommit=autocommit, autoflush=autoflush, expire_on_commit=expire_on_commit,
                          query_cls=query_cls, **options)
-        self.bind_key: str = ""
+        self.bind_key: Optional[str] = None
         self.is_closed: bool = False  # session是否关闭
         # noinspection PyTypeChecker
-        self.mgr_session: 'FesMgrSession' = None
+        self.mgr_session: Optional['FesMgrSession'] = None
 
     # noinspection PyTypeChecker
     def query(self, *entities, **kwargs) -> FesQuery:
@@ -110,7 +109,7 @@ class FesMgrSession(object):
 
         return self.sessfes().query(*entities, mgr_session=self, **kwargs)
 
-    def execute(self, query: Union[FesQuery, str], params: Dict[str, Any] = None) -> Optional[RowProxy]:
+    def execute(self, query: Union[FesQuery, str], params: Optional[Dict[str, Any]] = None) -> Optional[RowProxy]:
         """
         插入数据，更新或者删除数据
         Args:
@@ -145,8 +144,8 @@ class FesMgrSession(object):
                 cursor.close()
             session.close()
 
-    def query_execute(self, query: Union[FesQuery, str], params: Dict[str, Any] = None, size: int = None
-                      ) -> Union[List[RowProxy], RowProxy, None]:
+    def query_execute(self, query: Union[FesQuery, str], params: Optional[Dict[str, Any]] = None,
+                      size: Optional[int] = None) -> Union[List[RowProxy], RowProxy, None]:
         """
         查询数据
         Args:
@@ -182,11 +181,10 @@ class DBAlchemy(AlchemyMixIn, object):
     DB同步操作指南,基于SQlalchemy
     """
 
-    def __init__(self, app=None, *, username: str = "root", passwd: str = None,
-                 host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
-                 dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
-                 query_class: Type[FesQuery] = FesQuery, session_options: Dict[str, Any] = None,
-                 engine_options: Dict[str, Any] = None, **kwargs):
+    def __init__(self, app=None, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
+                 port: int = 3306, dbname: str = "", dialect: str = DialectDriver.mysql_pymysql,
+                 fessql_binds: Optional[Dict[str, Dict]] = None, session_options: Optional[Dict[str, Any]] = None,
+                 engine_options: Optional[Dict[str, Any]] = None, **kwargs):
         """
         DB同步操作指南,基于SQlalchemy
         Args:
@@ -198,7 +196,6 @@ class DBAlchemy(AlchemyMixIn, object):
             dbname: database name
             dialect: sqlalchemy默认的Dialect驱动
             fessql_binds: fesql binds
-            query_class: 查询类,orm.Query的子类
             session_options: 创建session的关键字参数
             engine_options: 创建engine的关键字参数
 
@@ -232,7 +229,7 @@ class DBAlchemy(AlchemyMixIn, object):
         self.passwd: Optional[str] = passwd
         self.host: str = host
         self.port: int = port
-        self.dbname: Optional[str] = dbname
+        self.dbname: str = dbname
         self.db_uri: URL = URL("")
         # session and engine
         self.kwargs: Dict[str, Any] = kwargs
@@ -242,7 +239,6 @@ class DBAlchemy(AlchemyMixIn, object):
         self._set_engine_opts()  # 更新默认参数
         # other binds
         self.fessql_binds: Dict[str, Dict] = fessql_binds or {}  # binds config
-        self.Query = query_class
 
         if app is not None:
             self.init_app(app)
@@ -301,7 +297,7 @@ class DBAlchemy(AlchemyMixIn, object):
         _setdefault('echo', 'FESSQL_ECHO')
         _setdefault('connect_args', 'FESSQL_CONNECT_ARGS')
 
-    def get_engine_url(self, db_name, *, username: str = None, password: str = None, host="127.0.0.1",
+    def get_engine_url(self, db_name, *, username: str = "", password: Optional[str] = None, host="127.0.0.1",
                        port: int = 3306) -> URL:
         """
         获取引擎需要的URL
@@ -337,12 +333,12 @@ class DBAlchemy(AlchemyMixIn, object):
         Returns:
 
         """
-        username = config.get("FESSQL_MYSQL_USERNAME") or self.username
-        passwd = config.get("FESSQL_MYSQL_PASSWD") or self.passwd
+        username = config.get("FESSQL_MYSQL_USERNAME", "") or self.username
+        passwd: Optional[str] = config.get("FESSQL_MYSQL_PASSWD", "") or self.passwd
         passwd = passwd if passwd is None else str(passwd)
-        host = config.get("FESSQL_MYSQL_HOST") or self.host
-        port = config.get("FESSQL_MYSQL_PORT") or self.port
-        dbname = config.get("FESSQL_MYSQL_DBNAME") or self.dbname
+        host = config.get("FESSQL_MYSQL_HOST", "") or self.host
+        port = config.get("FESSQL_MYSQL_PORT", "") or self.port
+        dbname = config.get("FESSQL_MYSQL_DBNAME", "") or self.dbname
         self.db_uri = self.get_engine_url(dbname, username=username, password=passwd, host=host, port=port)
 
         # 应用配置
@@ -355,8 +351,8 @@ class DBAlchemy(AlchemyMixIn, object):
         self.sessionmaker_pool[None] = self._create_scoped_sessionmaker(self.engine_pool[None])
 
     # noinspection DuplicatedCode
-    def init_engine(self, *, username: str = "root", passwd: str = None,
-                    host: str = "127.0.0.1", port: int = 3306, dbname: str = None, **kwargs):
+    def init_engine(self, *, username: str = "root", passwd: Optional[str] = "",
+                    host: str = "127.0.0.1", port: int = 3306, dbname: str = "", **kwargs):
         """
         mysql 实例初始化
         Args:
@@ -430,7 +426,8 @@ class DBAlchemy(AlchemyMixIn, object):
 
         :param bind: 引擎的bind
         """
-        self.session_options.setdefault("query_cls", self.Query)
+        # query_class: 查询类,orm.Query的子类
+        self.session_options.setdefault("query_cls", FesQuery)
         return orm.sessionmaker(bind=bind, class_=FesSession, **self.session_options)
 
     @staticmethod
@@ -466,7 +463,7 @@ class DBAlchemy(AlchemyMixIn, object):
             self._apply_engine_opts(bind_conf, engine_options)
             self.engine_pool[bind_key] = self._create_engine(db_uri, engine_options)
 
-    def _gen_sessionmaker(self, bind_key: str = None) -> orm.scoped_session:
+    def _gen_sessionmaker(self, bind_key: Optional[str] = None) -> orm.scoped_session:
         """
         session bind
         Args:
@@ -492,8 +489,8 @@ class DBAlchemy(AlchemyMixIn, object):
             session.execute(text("SELECT 1")).first()
         except sqlalchemy_err.OperationalError as err:
             if reconnect:
-                bind_key = getattr(session, "bind_key", Undefined)
-                if bind_key != Undefined:
+                bind_key = getattr(session, "bind_key", "")
+                if bind_key != "":
                     self.sessionmaker_pool[bind_key].remove()
                     session = self.gen_session(bind_key).sessfes()
                 else:

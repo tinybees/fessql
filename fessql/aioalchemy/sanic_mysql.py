@@ -20,11 +20,11 @@ from pymysql.err import IntegrityError, MySQLError
 from sqlalchemy.sql import Delete, Insert, Select, Update
 from sqlalchemy.sql.elements import TextClause
 
+from fessql._alchemy import AlchemyMixIn
+from fessql._err_msg import mysql_msg
+from fessql.err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
+from fessql.utils import _verify_message
 from .query import Query
-from .._alchemy import AlchemyMixIn
-from .._err_msg import mysql_msg
-from ..err import DBDuplicateKeyError, DBError, FuncArgsError, HttpError
-from ..utils import _verify_message
 
 __all__ = ("SanicMySQL", "Pagination", "Session")
 
@@ -123,7 +123,7 @@ class SessionReader(BaseSession):
     query session reader
     """
 
-    async def _query_execute(self, query: Union[Select, str], params: Dict = None) -> ResultProxy:
+    async def _query_execute(self, query: Union[Select, str], params: Optional[Dict[str, Any]] = None) -> ResultProxy:
         """
         查询数据
 
@@ -164,8 +164,8 @@ class SessionReader(BaseSession):
         cursor = await self._query_execute(query._query_obj)
         return await cursor.fetchall() if cursor.returns_rows else []
 
-    async def query_execute(self, query: Union[TextClause, str], params: Dict = None, size=None, cursor_close=True
-                            ) -> Union[List[RowProxy], RowProxy, None]:
+    async def query_execute(self, query: Union[TextClause, str], params: Optional[Dict[str, Any]] = None,
+                            size=None, cursor_close=True) -> Union[List[RowProxy], RowProxy, None]:
         """
         查询数据，用于复杂的查询
         Args:
@@ -207,7 +207,7 @@ class SessionReader(BaseSession):
         cursor = await self._query_execute(query._query_obj)
         return await cursor.first() if cursor.returns_rows else None
 
-    async def find_many(self, query: Query = None) -> Pagination:
+    async def find_many(self, query: Optional[Query] = None) -> Pagination:
         """
         查询多条数据,分页数据
         Args:
@@ -425,7 +425,14 @@ class Session(SessionReader, SessionWriter):
     """
     query session reader and writer
     """
-    pass
+
+    def __init__(self, aio_engine: Engine, message: Dict[int, Dict[str, Any]], msg_zh: str):
+        """
+            query session reader and writer
+        Args:
+
+        """
+        super().__init__(aio_engine, message, msg_zh)
 
 
 class SanicMySQL(AlchemyMixIn, object):
@@ -433,8 +440,8 @@ class SanicMySQL(AlchemyMixIn, object):
     MySQL异步操作指南
     """
 
-    def __init__(self, app=None, *, username: str = "root", passwd: str = None, host: str = "127.0.0.1",
-                 port: int = 3306, dbname: str = None, pool_size: int = 10, **kwargs):
+    def __init__(self, app=None, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
+                 port: int = 3306, dbname: str = "", pool_size: int = 10, **kwargs):
         """
         mysql 非阻塞工具类
 
@@ -463,16 +470,16 @@ class SanicMySQL(AlchemyMixIn, object):
         self.engine_pool: Dict[Optional[str], Engine] = {}  # engine pool
         self.session_pool: Dict[Optional[str], Any] = {}  # session pool
         # default bind connection
-        self.username = username
-        self.passwd = passwd
-        self.host = host
-        self.port = port
-        self.dbname = dbname
-        self.pool_size = pool_size
+        self.username: str = username
+        self.passwd: str = passwd
+        self.host: str = host
+        self.port: int = port
+        self.dbname: str = dbname
+        self.pool_size: int = pool_size
         # other info
-        self.pool_recycle = kwargs.pop("pool_recycle", 3600)  # free close time
-        self.charset = "utf8mb4"
-        self.fessql_binds: Dict = kwargs.pop("fessql_binds", {})  # binds config
+        self.pool_recycle: int = kwargs.pop("pool_recycle", 3600)  # free close time
+        self.charset: str = "utf8mb4"
+        self.fessql_binds: Dict[str, Dict[str, Any]] = {}  # kwargs.pop("fessql_binds", {})  # binds config
         self.message = kwargs.pop("message", {})
         self.use_zh = kwargs.pop("use_zh", True)
         self.msg_zh: str = ""
@@ -483,8 +490,8 @@ class SanicMySQL(AlchemyMixIn, object):
             self.init_app(app, username=self.username, passwd=self.passwd, host=self.host, port=self.port,
                           dbname=self.dbname, pool_size=self.pool_size, **self._conn_kwargs)
 
-    def init_app(self, app, *, username: str = None, passwd: str = None, host: str = None, port: int = None,
-                 dbname: str = None, pool_size: int = None, **kwargs):
+    def init_app(self, app, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
+                 port: int = 3306, dbname: str = "", pool_size: int = 10, **kwargs):
         """
         mysql 实例初始化
         Args:
@@ -524,6 +531,7 @@ class SanicMySQL(AlchemyMixIn, object):
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
         self._conn_kwargs = kwargs
 
+        # noinspection PyUnusedLocal
         @app.listener('before_server_start')
         async def open_connection(app_, loop):
             """
@@ -538,6 +546,7 @@ class SanicMySQL(AlchemyMixIn, object):
                 host=host, port=port, user=username, password=passwd, db=dbname, maxsize=self.pool_size,
                 pool_recycle=self.pool_recycle, charset=self.charset, **self._conn_kwargs)
 
+        # noinspection PyUnusedLocal
         @app.listener('after_server_stop')
         async def close_connection(app_, loop):
             """
@@ -554,8 +563,8 @@ class SanicMySQL(AlchemyMixIn, object):
             await asyncio.wait(tasks)
             aelog.debug("清理所有数据库连接池完毕！")
 
-    def init_engine(self, *, username: str = "root", passwd: str = None, host: str = "127.0.0.1", port: int = 3306,
-                    dbname: str = None, pool_size: int = 50, **kwargs):
+    def init_engine(self, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
+                    port: int = 3306, dbname: str = "", pool_size: int = 10, **kwargs):
         """
         mysql 实例初始化
         Args:

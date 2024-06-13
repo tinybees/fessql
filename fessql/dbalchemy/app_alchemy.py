@@ -6,7 +6,7 @@
 @software: PyCharm
 @time: 2020/11/10 下午4:14
 """
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from .dbalchemy import DBAlchemy
 from .drivers import DialectDriver
@@ -20,10 +20,10 @@ class FastapiAlchemy(DBAlchemy):
     DB同步操作指南，适用于fastapi
     """
 
-    def __init__(self, app=None, *, username: str = "root", passwd: str = None,
-                 host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
-                 dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
-                 session_options: Dict[str, Any] = None, engine_options: Dict[str, Any] = None, **kwargs):
+    def __init__(self, app=None, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
+                 port: int = 3306, dbname: str = "", dialect: str = DialectDriver.mysql_pymysql,
+                 fessql_binds: Optional[Dict[str, Dict]] = None, session_options: Optional[Dict[str, Any]] = None,
+                 engine_options: Optional[Dict[str, Any]] = None, **kwargs):
         """
         DB同步操作指南，适用于fastapi,基于SQlalchemy
         Args:
@@ -100,10 +100,10 @@ class FlaskAlchemy(DBAlchemy):
     DB同步操作指南，适用于Flask
     """
 
-    def __init__(self, app=None, *, username: str = "root", passwd: str = None,
-                 host: str = "127.0.0.1", port: int = 3306, dbname: str = None,
-                 dialect: str = DialectDriver.mysql_pymysql, fessql_binds: Dict[str, Dict] = None,
-                 session_options: Dict[str, Any] = None, engine_options: Dict[str, Any] = None, **kwargs):
+    def __init__(self, app=None, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
+                 port: int = 3306, dbname: str = "", dialect: str = DialectDriver.mysql_pymysql,
+                 fessql_binds: Optional[Dict[str, Dict]] = None, session_options: Optional[Dict[str, Any]] = None,
+                 engine_options: Optional[Dict[str, Any]] = None, **kwargs):
         """
         DB同步操作指南，适用于Flask,基于SQlalchemy
         Args:

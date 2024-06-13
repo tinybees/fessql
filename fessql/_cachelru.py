@@ -194,6 +194,7 @@ class LRI(dict):
             return link[VALUE]
 
     def get(self, key, default=None):
+        """get"""
         try:
             return self[key]
         except KeyError:
@@ -206,6 +207,7 @@ class LRI(dict):
             self._remove_from_ll(key)
 
     def pop(self, key, default=_MISSING):
+        """pop"""
         # NB: hit/miss counts are bypassed for pop()
         with self._lock:
             try:
@@ -219,20 +221,24 @@ class LRI(dict):
             return ret
 
     def popitem(self):
+        """popitem"""
         with self._lock:
             item = super(LRI, self).popitem()
             self._remove_from_ll(item[0])
             return item
 
     def clear(self):
+        """clear"""
         with self._lock:
             super(LRI, self).clear()
             self._init_ll()
 
     def copy(self):
+        """copy"""
         return self.__class__(max_size=self.max_size, values=self)
 
     def setdefault(self, key, default=None):
+        """setdefault"""
         with self._lock:
             try:
                 return self[key]
@@ -242,6 +248,7 @@ class LRI(dict):
                 return default
 
     def update(self, E, **F):
+        """update"""
         # E and F are throwback names to the dict() __doc__
         with self._lock:
             if E is self:

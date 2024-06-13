@@ -8,7 +8,7 @@
 """
 
 import uuid
-from typing import ClassVar, Dict, MutableMapping, Sequence
+from typing import ClassVar, Dict, MutableMapping, Optional, Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
@@ -51,9 +51,9 @@ class AlchemyMixIn(object):
                     raise ConfigError(f"fessql_binds config {bind_name} error, "
                                       f"missing {' '.join(missing_items)} config item.")
 
-    def gen_model(self, model_cls: DeclarativeMeta, class_suffix: str = None, table_suffix: str = None,
-                  table_name: str = None, field_mapping: Dict[str, str] = None,
-                  fields: Sequence[str] = None):
+    def gen_model(self, model_cls: DeclarativeMeta, class_suffix: str = "", table_suffix: str = "",
+                  table_name: Optional[str] = None, field_mapping: Optional[Dict[str, str]] = None,
+                  fields: Optional[Sequence[str]] = None):
         """
         用于根据现有的model生成新的model类
 
