@@ -10,6 +10,7 @@
 - 优化session及query的使用逻辑，现在查询数据或者分页数据后(如first,all,paginate)会立即关闭session到连接池
 - 优化重构flask部分逻辑和通用逻辑抛弃flask-sqlalchemy使用和fastapi一样的中间件查询规范，flask-sqlalchemy中大量功能用不到也影响性能
 - 优化提示增加核心文件的stub文件 
+- 增加同步db中query中的delete和update方法重写默认值
 
 #### Changed 
 - 更改paginate分页的默认分页行为如果传limit=0则最大只返回1000条数据,防止数据过多卡死

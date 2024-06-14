@@ -441,3 +441,114 @@ class FesQuery(orm.Query):
         """
         with self.close_session(is_closed):
             return super().scalar()
+
+    def delete(self, synchronize_session=False) -> int:
+        """Perform a bulk delete query.
+
+        Deletes rows matched by this query from the database.
+
+        E.g.::
+
+            sess.query(User).filter(User.age == 25).\
+                delete(synchronize_session=False)
+
+            sess.query(User).filter(User.age == 25).\
+                delete(synchronize_session='evaluate')
+
+        :param synchronize_session: chooses the strategy for the removal of
+        matched objects from the session. Valid values are:
+
+        ``False`` - don't synchronize the session. This option is the most
+        efficient and is reliable once the session is expired, which
+        typically occurs after a commit(), or explicitly using
+        expire_all(). Before the expiration, objects may still remain in
+        the session which were in fact deleted which can lead to confusing
+        results if they are accessed via get() or already loaded
+        collections.
+
+        ``'fetch'`` - performs a select query before the delete to find
+        objects that are matched by the delete query and need to be
+        removed from the session. Matched objects are removed from the
+        session.
+
+        ``'evaluate'`` - Evaluate the query's criteria in Python straight
+        on the objects in the session. If evaluation of the criteria isn't
+        implemented, an error is raised.
+
+        The expression evaluator currently doesn't account for differing
+        string collations between the database and Python.
+
+        :return: the count of rows matched as returned by the database's
+          "row count" feature.
+
+        """
+        return super().delete(synchronize_session)
+
+    def update(self, values, synchronize_session=False, update_args=None) -> int:
+        r"""Perform a bulk update query.
+
+        Updates rows matched by this query in the database.
+
+        E.g.::
+
+            sess.query(User).filter(User.age == 25).\
+                update({User.age: User.age - 10}, synchronize_session=False)
+
+            sess.query(User).filter(User.age == 25).\
+                update({"age": User.age - 10}, synchronize_session='evaluate')
+
+        .. warning:: The :meth:`_query.Query.update`
+           method is a "bulk" operation,
+           which bypasses ORM unit-of-work automation in favor of greater
+           performance.  **Please read all caveats and warnings below.**
+
+        :param values: a dictionary with attributes names, or alternatively
+         mapped attributes or SQL expressions, as keys, and literal
+         values or sql expressions as values.   If :ref:`parameter-ordered
+         mode <updates_order_parameters>` is desired, the values can be
+         passed as a list of 2-tuples;
+         this requires that the
+         :paramref:`~sqlalchemy.sql.expression.update.preserve_parameter_order`
+         flag is passed to the :paramref:`.Query.update.update_args` dictionary
+         as well.
+
+          .. versionchanged:: 1.0.0 - string names in the values dictionary
+             are now resolved against the mapped entity; previously, these
+             strings were passed as literal column names with no mapper-level
+             translation.
+
+        :param synchronize_session: chooses the strategy to update the
+         attributes on objects in the session. Valid values are:
+
+            ``False`` - don't synchronize the session. This option is the most
+            efficient and is reliable once the session is expired, which
+            typically occurs after a commit(), or explicitly using
+            expire_all(). Before the expiration, updated objects may still
+            remain in the session with stale values on their attributes, which
+            can lead to confusing results.
+
+            ``'fetch'`` - performs a select query before the update to find
+            objects that are matched by the update query. The updated
+            attributes are expired on matched objects.
+
+            ``'evaluate'`` - Evaluate the Query's criteria in Python straight
+            on the objects in the session. If evaluation of the criteria isn't
+            implemented, an exception is raised.
+
+            The expression evaluator currently doesn't account for differing
+            string collations between the database and Python.
+
+        :param update_args: Optional dictionary, if present will be passed
+         to the underlying :func:`_expression.update`
+         construct as the ``**kw`` for
+         the object.  May be used to pass dialect-specific arguments such
+         as ``mysql_limit``, as well as other special arguments such as
+         :paramref:`~sqlalchemy.sql.expression.update.preserve_parameter_order`.
+
+         .. versionadded:: 1.0.0
+
+        :return: the count of rows matched as returned by the database's
+         "row count" feature.
+
+        """
+        return super().update(values, synchronize_session, update_args)
