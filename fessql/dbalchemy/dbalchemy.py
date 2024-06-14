@@ -56,8 +56,8 @@ class FesSession(orm.Session):
         :class:`.Session`.
         返回新FesQuery的对象实例
         """
-
-        return super().query(*entities, mgr_session=kwargs.get("mgr_session", self.mgr_session), **kwargs)
+        kwargs.setdefault("mgr_session", self.mgr_session)
+        return super().query(*entities, **kwargs)
 
     def close(self):
         """Close this Session.
@@ -106,8 +106,8 @@ class FesMgrSession(object):
         :class:`.Session`.
         返回包含新FesSession对象实例的新FesQuery的对象实例
         """
-
-        return self.sessfes().query(*entities, mgr_session=self, **kwargs)
+        kwargs.setdefault("mgr_session", self)
+        return self.sessfes().query(*entities, **kwargs)
 
     def execute(self, query: Union[FesQuery, str], params: Optional[Dict[str, Any]] = None) -> Optional[RowProxy]:
         """
