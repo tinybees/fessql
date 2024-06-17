@@ -314,7 +314,7 @@ class DBAlchemy(AlchemyMixIn, object):
                    host=host, port=port, database=db_name)
 
     # noinspection DuplicatedCode
-    def init_app(self, app):
+    def init_app(self, app) -> None:
         """
         mysql 实例初始化
         Args:
@@ -352,7 +352,7 @@ class DBAlchemy(AlchemyMixIn, object):
 
     # noinspection DuplicatedCode
     def init_engine(self, *, username: str = "root", passwd: Optional[str] = "",
-                    host: str = "127.0.0.1", port: int = 3306, dbname: str = "", **kwargs):
+                    host: str = "127.0.0.1", port: int = 3306, dbname: str = "", **kwargs) -> None:
         """
         mysql 实例初始化
         Args:

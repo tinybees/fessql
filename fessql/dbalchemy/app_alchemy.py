@@ -59,7 +59,7 @@ class FastapiAlchemy(DBAlchemy):
                          dialect=dialect, fessql_binds=fessql_binds, session_options=session_options,
                          engine_options=engine_options, **kwargs)
 
-    def init_app(self, app):
+    def init_app(self, app) -> None:
         """
         mysql 实例初始化
         Args:
@@ -139,7 +139,7 @@ class FlaskAlchemy(DBAlchemy):
                          dialect=dialect, fessql_binds=fessql_binds, session_options=session_options,
                          engine_options=engine_options, **kwargs)
 
-    def init_app(self, app):
+    def init_app(self, app) -> None:
         """
         mysql 实例初始化
         Args:
