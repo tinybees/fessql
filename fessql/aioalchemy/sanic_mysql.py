@@ -441,7 +441,7 @@ class SanicMySQL(AlchemyMixIn, object):
     """
 
     def __init__(self, app=None, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
-                 port: int = 3306, dbname: str = "", pool_size: int = 10, **kwargs):
+                 port: int = 3306, dbname: str = "", pool_size: int = 25, **kwargs):
         """
         mysql 非阻塞工具类
 
@@ -463,7 +463,7 @@ class SanicMySQL(AlchemyMixIn, object):
                                                     "fessql_mysql_username":"root",
                                                     "fessql_mysql_passwd":"",
                                                     "fessql_mysql_dbname":"dbname",
-                                                    "fessql_mysql_pool_size":10}}
+                                                    "fessql_mysql_pool_size":25}}
 
         """
         self.app = app
@@ -491,7 +491,7 @@ class SanicMySQL(AlchemyMixIn, object):
                           dbname=self.dbname, pool_size=self.pool_size, **self._conn_kwargs)
 
     def init_app(self, app, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
-                 port: int = 3306, dbname: str = "", pool_size: int = 10, **kwargs):
+                 port: int = 3306, dbname: str = "", pool_size: int = 25, **kwargs):
         """
         mysql 实例初始化
         Args:
@@ -564,7 +564,7 @@ class SanicMySQL(AlchemyMixIn, object):
             aelog.debug("清理所有数据库连接池完毕！")
 
     def init_engine(self, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
-                    port: int = 3306, dbname: str = "", pool_size: int = 10, **kwargs):
+                    port: int = 3306, dbname: str = "", pool_size: int = 25, **kwargs):
         """
         mysql 实例初始化
         Args:

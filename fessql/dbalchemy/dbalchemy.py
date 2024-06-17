@@ -263,7 +263,7 @@ class DBAlchemy(AlchemyMixIn, object):
         Returns:
 
         """
-        self.engine_options.setdefault("pool_size", self.kwargs.get("pool_size", 10))
+        self.engine_options.setdefault("pool_size", self.kwargs.get("pool_size", 25))
         self.engine_options.setdefault("pool_recycle", self.kwargs.get("pool_recycle", 3600))
         self.engine_options.setdefault("pool_timeout", self.kwargs.get("pool_timeout", 60))
         self.engine_options.setdefault("max_overflow", self.kwargs.get("max_overflow", 10))
