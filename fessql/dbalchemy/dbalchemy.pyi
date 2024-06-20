@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, ContextManager, Dict, List, Optional, Sequence, Type, Union
+from typing import Any, ContextManager, Dict, List, Optional, Sequence, Type, Union
 
 from sqlalchemy import orm
 # noinspection PyProtectedMember
@@ -43,7 +43,7 @@ class FesMgrSession:
 
 
 class DBAlchemy(AlchemyMixIn):
-    Model: ClassVar[DeclarativeMeta]
+    Model: DeclarativeMeta  # 应该标记为 ClassVar[DeclarativeMeta] 但是标记后pycharm不会自动提示了
     app: Any
     # engine pool
     engine_pool: Dict[Optional[str], Engine]
