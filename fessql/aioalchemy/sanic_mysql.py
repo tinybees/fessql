@@ -8,9 +8,8 @@
 """
 import asyncio
 import atexit
-from collections import MutableSequence
 from math import ceil
-from typing import (Any, Dict, List, MutableMapping, Optional, Tuple, Union)
+from typing import Any, Dict, List, MutableMapping, MutableSequence, Optional, Tuple, Union
 
 import aelog
 from aiomysql.sa import Engine, SAConnection, create_engine
@@ -33,7 +32,7 @@ __all__ = ("SanicMySQL", "Pagination", "Session")
 class Pagination(object):
     """Internal helper class returned by :meth:`BaseQuery.paginate`.  You
     can also construct it from any other SQLAlchemy query object if you are
-    working with other libraries.  Additionally it is possible to pass `None`
+    working with other libraries.  Additionally, it is possible to pass `None`
     as query object in which case the :meth:`prev` and :meth:`next` will
     no longer work.
     """
@@ -487,49 +486,37 @@ class SanicMySQL(AlchemyMixIn, object):
         self._conn_kwargs: Dict[str, Any] = kwargs  # 其他连接关键字参数
 
         if app is not None:
-            self.init_app(app, username=self.username, passwd=self.passwd, host=self.host, port=self.port,
-                          dbname=self.dbname, pool_size=self.pool_size, **self._conn_kwargs)
+            self.init_app(app)
 
-    def init_app(self, app, *, username: str = "root", passwd: str = "", host: str = "127.0.0.1",
-                 port: int = 3306, dbname: str = "", pool_size: int = 25, **kwargs):
+    def init_app(self, app):
         """
         mysql 实例初始化
         Args:
             app: app应用
-            host:mysql host
-            port:mysql port
-            dbname: database name
-            username: mysql user
-            passwd: mysql password
-            pool_size: mysql pool size
-
         Returns:
 
         """
         self.app = app
 
         self._verify_sanic_app()  # 校验APP类型是否正确
-        username = username or app.config.get("FESSQL_MYSQL_USERNAME", None) or self.username
-        passwd = passwd or app.config.get("FESSQL_MYSQL_PASSWD", None) or self.passwd
-        host = host or app.config.get("FESSQL_MYSQL_HOST", None) or self.host
-        port = port or app.config.get("FESSQL_MYSQL_PORT", None) or self.port
-        dbname = dbname or app.config.get("FESSQL_MYSQL_DBNAME", None) or self.dbname
-        self.pool_size = pool_size or app.config.get("FESSQL_MYSQL_POOL_SIZE", None) or self.pool_size
+        username = app.config.get("FESSQL_MYSQL_USERNAME", None) or self.username
+        passwd = app.config.get("FESSQL_MYSQL_PASSWD", None) or self.passwd
+        host = app.config.get("FESSQL_MYSQL_HOST", None) or self.host
+        port = app.config.get("FESSQL_MYSQL_PORT", None) or self.port
+        dbname = app.config.get("FESSQL_MYSQL_DBNAME", None) or self.dbname
+        self.pool_size = app.config.get("FESSQL_MYSQL_POOL_SIZE", None) or self.pool_size
 
-        self.pool_recycle = kwargs.pop("pool_recycle", None) or app.config.get(
-            "FESSQL_POOL_RECYCLE", None) or self.pool_recycle
+        self.pool_recycle = app.config.get("FESSQL_POOL_RECYCLE", None) or self.pool_recycle
 
-        message = kwargs.pop("message", None) or app.config.get("FESSQL_MYSQL_MESSAGE", None) or self.message
-        use_zh = kwargs.pop("use_zh", None) or app.config.get("FESSQL_MYSQL_MSGZH", None) or self.use_zh
+        message = app.config.get("FESSQL_MYSQL_MESSAGE", None) or self.message
+        use_zh = app.config.get("FESSQL_MYSQL_MSGZH", None) or self.use_zh
 
-        self.fessql_binds = kwargs.pop("fessql_binds", None) or app.config.get(
-            "FESSQL_BINDS", None) or self.fessql_binds
+        self.fessql_binds = app.config.get("FESSQL_BINDS", None) or self.fessql_binds
         self.verify_binds()
 
         passwd = passwd if passwd is None else str(passwd)
         self.message = _verify_message(mysql_msg, message)
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
-        self._conn_kwargs = kwargs
 
         # noinspection PyUnusedLocal
         @app.listener('before_server_start')
@@ -597,7 +584,7 @@ class SanicMySQL(AlchemyMixIn, object):
         self.message = _verify_message(mysql_msg, message)
         self.msg_zh = "msg_zh" if use_zh else "msg_en"
         loop = asyncio.get_event_loop()
-        self._conn_kwargs = kwargs
+        self._conn_kwargs.update(kwargs)
 
         async def open_connection():
             """
